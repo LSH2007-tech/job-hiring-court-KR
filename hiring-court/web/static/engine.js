@@ -217,7 +217,7 @@
   }
   function unlock(n) { trial.max_step = Math.max(trial.max_step, n); }
   function start(key, fn) {
-    var job = trial[key]; job.status = 'running'; job.error = null; job.msg = '';
+    var job = trial[key]; job.status = 'running'; job.error = null; job.msg = ''; job.since = Date.now() / 1000;
     fn().then(function () { job.status = 'done'; }).catch(function (e) { job.status = 'error'; job.error = e.message; job.code = e.code || 'internal'; });
   }
 
@@ -231,18 +231,13 @@
     trial.evidence.push(item);
   }
 
-  async function jobJd(mode, url, text) {
+  async function jobJd(mode, text) {
     var jd = trial.jd, rows = jd.rows = ROWS.map(function (k) { return { key: k, st: 'wait', val: '' }; });
     jd.confirmed = false; jd.analysis = null; jd.match = null; trial.max_step = 0;
     function row(i, st, val) { rows[i].st = st; rows[i].val = val || ''; }
     row(0, 'run');
     var raw, label;
-    if (mode === 'link') {
-      var got = await ask({ model: MODEL_FAST, effort: 'low', tools: [{ type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 2 }],
-        content: [{ type: 'text', text: '아래 채용 공고 주소를 web_fetch로 열어, 공고 본문(조직 소개, 주요 업무, 자격 요건, 우대, 전형, 채용 대상)을 한 글자도 바꾸지 말고 옮겨라. 메뉴, 하단 정보, 다른 추천 공고는 빼라. 페이지에 공고 본문이 없거나(자격, 우대, 업무 같은 말이 없는 껍데기 페이지) 열리지 않으면 found를 false로 하라.\n주소: ' + url + '\n\n마지막에 ```json\n{"found": true 또는 false, "text": "공고 본문"}\n``` 블록 하나로만 답하라.' }] });
-      if (!got.found || String(got.text || '').replace(/\s/g, '').length < 200) { row(0, 'error', '이 링크에서는 공고 내용을 찾지 못했어요'); throw Fail('link_empty', '링크에서 공고 내용을 찾지 못했어요'); }
-      raw = got.text; label = '링크';
-    } else if (mode === 'file' || mode === 'image') {
+    if (mode === 'file' || mode === 'image') {
       if (!blobs.jd.length) { row(0, 'error', '파일이 없어요'); throw Fail('file_empty', '공고 파일을 먼저 넣어 주세요'); }
       var parts = [];
       for (var i = 0; i < blobs.jd.length; i++) { var p = await toPart(blobs.jd[i]); p.name = blobs.jd[i].name; parts.push(p); }
@@ -444,7 +439,7 @@
     if (act === 'evidence/kind') trial.evidence.forEach(function (e) { if (e.n === body.n) e.kind = body.kind; });
     else if (act === 'evidence/remove') { trial.evidence = trial.evidence.filter(function (e) { return e.n !== body.n; }); delete blobs.evidence[body.n]; }
     else if (act === 'clear-files') { if (body.kind === 'jd') { trial.jd.files = []; blobs.jd = []; } else { trial.cover.files = []; blobs.cover = []; } }
-    else if (act === 'jd') start('jd', function () { return jobJd(body.mode, body.url, body.text); });
+    else if (act === 'jd') start('jd', function () { return jobJd(body.mode, body.text); });
     else if (act === 'jd/reanalyze') { if (String(body.extra || '').trim()) trial.extra += String(body.extra).trim() + '\n'; trial.jd.confirmed = false; trial.max_step = 0; start('jd', analyze); }
     else if (act === 'jd/confirm') { need(trial.jd.status === 'done', '공고 분석이 끝나야 확정할 수 있어요'); trial.jd.confirmed = true; unlock(1); if (trial.panel.status === 'idle') start('panel', function () { return jobPanel(''); }); }
     else if (act === 'panel/redo') { trial.panel.confirmed = false; start('panel', function () { return jobPanel(body.note || ''); }); }

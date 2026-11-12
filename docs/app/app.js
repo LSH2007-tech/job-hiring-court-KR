@@ -1,7 +1,7 @@
 'use strict';
 // 취업재판 웹앱 화면. 서버(/api)의 재판 상태 S를 1.5초마다 받아 그린다.
 var S = null, last = '';
-var ui = { started: false, step: 0, filesOpen: false, notionOpen: false, notionSt: '', notionHint: '', input: 'link', url: '', paste: '', extra: '', panelNote: '', noteOpen: false,
+var ui = { started: false, step: 0, filesOpen: false, notionOpen: false, notionSt: '', notionHint: '', input: 'image', paste: '', extra: '', panelNote: '', noteOpen: false,
   clMode: 'write', qs: [{ q: '', limit: '', a: '' }], chatN: 0, revealN: 0, preview: null, previewText: '', savePath: '', toast: '', busy: false };
 var LABELS = ['공고 접수', '재판부와 사건 기록', '공방', '배심 표결', '판결과 조언', '전달', '재심 또는 제출'];
 var SUBS = ['서기가 공고문을 확인합니다', '배심원이 입장합니다', '탈락 위원과 합격 위원이 다툽니다', '배심원이 각자 투표합니다', '판사가 판결하고 고칠 점을 알려 줍니다', '기록을 전달합니다', '다음 행동을 고릅니다'];
@@ -108,17 +108,26 @@ function header() {
 }
 
 function clerk(text) { return '<div class="row" style="align-items:flex-end">' + person('#3E6E73', '#2B2230', 84, 'clerk') + '<div class="bubble"><b>서기:</b> ' + text + '</div></div>'; }
-function running(msg) { return '<div class="soft"><span class="spin"></span> ' + h(msg) + ' <span class="small">(1~3분 걸릴 수 있어요)</span></div>'; }
+// 오래 걸리는 작업이 멈춘 것처럼 보이지 않게: 지금 하는 일(job.act)과 지난 시간(job.since)을 함께 보인다.
+function elapsed(since) { var s = Math.max(0, Math.round(Date.now() / 1000 - since)); return '경과 ' + (s >= 60 ? Math.floor(s / 60) + '분 ' : '') + (s % 60) + '초'; }
+function progress(job) {
+  if (!job) return '';
+  return (job.act ? '<br><span class="small">지금: ' + h(job.act) + '</span>' : '') + (job.since ? ' <span class="small" data-since="' + job.since + '">' + elapsed(job.since) + '</span>' : '');
+}
+function running(msg, job) { return '<div class="soft" role="status"><span class="spin"></span> ' + h(msg) + ' <span class="small">(1~3분 걸릴 수 있어요)</span>' + progress(job) + '</div>'; }
+setInterval(function () {
+  Array.prototype.forEach.call(document.querySelectorAll('[data-since]'), function (el) { el.textContent = elapsed(+el.dataset.since); });
+}, 1000);
 function errorBox(job, retry) { return '<div class="warn" role="alert"><b>문제가 생겼어요.</b> ' + h(job.error) + (retry ? '<br><button class="btn" style="margin-top:8px" data-act="' + retry + '">다시 시도</button>' : '') + '</div>'; }
 function preview() { return ui.preview ? '<div><div class="row between"><b>' + h(ui.preview) + '</b><button class="btn" data-act="closePreview">닫기</button></div><div class="pre">' + h(ui.previewText) + '</div></div>' : ''; }
 
 function step0() {
   var jd = S.jd, st = jd.status, a = jd.analysis, m = jd.match;
-  var line = st === 'idle' ? '본 판결에 앞서 서기가 공고문을 먼저 확인합니다. 링크, 캡처 이미지, 파일 중 하나로 공고문을 주세요.' : st === 'running' ? '공고문을 읽고 있습니다. 아래 칸이 하나씩 채워집니다.' : st === 'error' ? '공고를 확인하지 못했습니다. 아래 안내를 봐 주세요.' : jd.confirmed ? '공고 확인을 마쳤습니다. 다음은 재판부와 자기소개서입니다.' : '공고 분석을 마쳤습니다. 제가 이해한 내용이 맞는지 확인해 주세요.';
-  var modes = [['link', '링크'], ['image', '이미지(캡처)'], ['file', '파일(PDF, Word)'], ['paste', '본문 붙여넣기']];
-  var inp = ui.input === 'link' ? '<label for="jd-url">공고 링크</label><input id="jd-url" type="url" placeholder="https://" data-bind="url" value="' + h(ui.url) + '">' :
-    ui.input === 'paste' ? '<label for="jd-paste">공고 본문</label><textarea id="jd-paste" rows="6" placeholder="공고 페이지의 글을 복사해 붙여넣으세요" data-bind="paste">' + h(ui.paste) + '</textarea>' :
+  var line = st === 'idle' ? '본 판결에 앞서 서기가 공고문을 먼저 확인합니다. 캡처 이미지, 파일, 본문 붙여넣기 중 하나로 공고문을 주세요.' : st === 'running' ? '공고문을 읽고 있습니다. 아래 칸이 하나씩 채워집니다.' : st === 'error' ? '공고를 확인하지 못했습니다. 아래 안내를 봐 주세요.' : jd.confirmed ? '공고 확인을 마쳤습니다. 다음은 재판부와 자기소개서입니다.' : '공고 분석을 마쳤습니다. 제가 이해한 내용이 맞는지 확인해 주세요.';
+  var modes = [['image', '이미지(캡처)'], ['file', '파일(PDF, Word)'], ['paste', '본문 붙여넣기']];
+  var inp = ui.input === 'paste' ? '<label for="jd-paste">공고 본문</label><textarea id="jd-paste" rows="6" placeholder="공고 페이지의 글을 복사해 붙여넣으세요" data-bind="paste">' + h(ui.paste) + '</textarea>' :
     '<label class="drop" for="jd-file">' + (ui.input === 'image' ? '공고 캡처 이미지를 눌러서 고르세요 (여러 장 가능)' : '공고 파일을 눌러서 고르세요 (PDF, Word, hwpx)') + '</label><input id="jd-file" type="file" multiple accept="' + (ui.input === 'image' ? 'image/*' : '.pdf,.docx,.hwpx,.txt') + '" data-up="jd">' +
+    (ui.input === 'file' ? '<div class="soft" style="font-size:13px"><b>공고 페이지를 PDF로 저장하는 법</b><ol style="margin:4px 0 0 18px"><li>공고 페이지에서 <b>Ctrl+P</b>를 누릅니다 (Mac은 ⌘+P).</li><li>대상(프린터)을 <b>PDF로 저장</b>으로 바꿉니다.</li><li><b>저장</b>을 누르고, 저장된 파일을 위에 넣습니다.</li></ol></div>' : '') +
     (jd.files.length ? '<div class="small">넣은 파일: ' + jd.files.map(h).join(', ') + ' <button class="btn" data-act="clearJd">비우기</button></div>' : '');
   var html = clerk(line) +
     '<section class="card col"><div class="row" role="group" aria-label="공고 입력 방식">' + modes.map(function (x) { return '<button class="seg' + (ui.input === x[0] ? ' on' : '') + '" data-act="input" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' + inp +
@@ -128,10 +137,10 @@ function step0() {
     html += '<section class="card col"><div class="row between"><div class="h3">서기의 공고 확인</div><span class="small">' + doneN + ' / 6 완료</span></div>' +
       jd.rows.map(function (r, i) {
         return '<div class="prow ' + r.st + '"><span class="num">' + (i + 1) + '</span><span style="flex:1 1 auto;min-width:0"><b style="font-size:13px">' + r.key + '</b><br><span style="font-size:13px">' + h(r.st === 'run' ? '분석 중…' : r.val || '빈칸') + '</span></span><span class="tag ' + r.st + '">' + { wait: '대기', run: '분석 중', done: '완료', error: '오류' }[r.st] + '</span></div>';
-      }).join('') + '</section>';
+      }).join('') + (st === 'running' ? running(doneN < 2 ? '공고문을 받아 읽는 중' : doneN < 5 ? '공고를 분석하는 중' : '공고의 업무 줄마다 지원자 기록과 맞춰 보는 중', jd) : '') + '</section>';
   }
   if (st === 'error') {
-    html += '<div class="warn col" role="alert"><b>' + h(jd.error) + '</b><span>일부 채용 사이트는 링크만으로 공고 내용을 볼 수 없어요. 아래 방법 중 하나로 다시 주세요.</span><div class="grid3">' +
+    html += '<div class="warn col" role="alert"><b>' + h(jd.error) + '</b><span>아래 방법 중 하나로 다시 주세요.</span><div class="grid3">' +
       [['image', '캡처 이미지', '여러 장 가능'], ['file', 'PDF 파일', 'Ctrl+P → PDF로 저장'], ['paste', '본문 붙여넣기', '드래그 → 복사']].map(function (x) { return '<button class="btn" data-act="input" data-v="' + x[0] + '"><b>' + x[1] + '</b><br><span class="small">' + x[2] + '</span></button>'; }).join('') + '</div></div>';
   }
   if (st === 'done' && a) {
@@ -159,7 +168,7 @@ function step0() {
 
 function step1() {
   var p = S.panel, html = '';
-  if (p.status === 'running' || p.status === 'idle') html += '<div class="h3">JD에 맞춰 재판부를 세우는 중…</div>' + running('회사의 당면 과제와 현직자 자료를 찾아 배심원 세 명의 관점을 세우고 있습니다');
+  if (p.status === 'running' || p.status === 'idle') html += '<div class="h3">JD에 맞춰 재판부를 세우는 중…</div>' + running('회사의 당면 과제와 현직자 자료를 찾아 배심원 세 명의 관점을 세우고 있습니다', p);
   else if (p.status === 'error') html += errorBox(p, 'redoPanel');
   else {
     html += '<div><div class="h3">재판부가 입장했습니다</div><span class="small">공고 분석을 바탕으로 이 회사에 맞는 배심원 세 명을 세웠습니다.</span></div><div class="grid3">' +
@@ -201,7 +210,7 @@ function bubbleHtml(m) {
 }
 function step2() {
   var d = S.debate;
-  if (d.status === 'running') return running(d.msg || '공방을 준비하는 중');
+  if (d.status === 'running') return running(d.msg || '공방을 준비하는 중', d);
   if (d.status === 'error') return errorBox(d) + '<button class="btn" data-act="go" data-n="1">자기소개서 단계로 돌아가기</button>';
   if (d.status !== 'done') return '<div class="soft muted">자기소개서를 접수하면 공방이 열립니다.</div>';
   var ms = d.messages, done = ui.chatN >= ms.length, phase = -1;
@@ -218,7 +227,7 @@ function step3() {
   var v = S.vote, js = v.jurors || [];
   var html = '<div class="row between"><span style="font-size:14px">세 배심원은 서로의 표를 보지 못한 채 각자 투표합니다.</span>' +
     (v.status === 'done' ? '<button class="btn primary" data-act="reveal"' + (ui.revealN > 0 && ui.revealN < 3 ? ' disabled' : '') + '>' + (ui.revealN === 0 ? '표결 공개' : ui.revealN < 3 ? '공개 중…' : '다시 가리기') + '</button>' : v.status === 'idle' ? '<button class="btn primary" data-act="startVote">표결 시작</button>' : '') + '</div>';
-  if (v.status === 'running') html += running(v.msg || '배심원 세 명이 각자 투표하는 중');
+  if (v.status === 'running') html += running(v.msg || '배심원 세 명이 각자 투표하는 중', v);
   if (v.status === 'error') html += errorBox(v, 'startVote');
   html += '<div class="grid3">' + ['인사담당자', '임원진', '실무 담당자'].map(function (name, i) {
     var j = js[i], open = j && i < ui.revealN, c = COLORS[name];
@@ -246,7 +255,7 @@ function step4() {
     return '<div class="prow ' + st + '"><span class="tag" style="background:' + (r[0] === '판사' ? 'var(--navy)' : 'var(--teal)') + ';color:#fff">' + r[0] + '</span><span><b style="font-size:14px">' + (st === 'done' ? r[1] : st === 'run' ? '정리하는 중…' : '대기') + '</b>' + (st === 'done' ? '<br><span style="font-size:13px">' + h(r[2]) + '</span>' : '') + '</span></div>';
   }).join('') + '</section>';
   if (vd.status === 'idle') html += '<button class="btn primary big" data-act="startVerdict">판결 시작</button>';
-  if (vd.status === 'running') html += running('판사와 서기가 판결문과 조언을 쓰는 중');
+  if (vd.status === 'running') html += running('판사와 서기가 판결문과 조언을 쓰는 중', vd);
   if (vd.status === 'error') html += errorBox(vd, 'startVerdict');
   if (vd.status !== 'done') return html;
   var d = vd.data, res = tl['서류 판결'], pct = tl['서류 예측 %'], col = res === '합격' ? 'var(--blue)' : res === '탈락' ? 'var(--orange)' : 'var(--mute)';
@@ -276,7 +285,7 @@ function step5() {
       var btn = f.ready ? '<button class="btn" data-act="open" data-f="' + h(f.file) + '" data-t="' + h(f.name) + '">열기</button>' :
         f.file === '수정본.md' ? '<button class="btn primary" data-act="revision"' + (rv.status === 'running' ? ' disabled' : '') + '>' + (rv.status === 'running' ? '쓰는 중…' : '수정본 만들기') + '</button>' : '<button class="btn" disabled>없음</button>';
       return '<tr><td><b>' + h(f.name) + '</b></td><td>' + h(f.desc) + '</td><td>' + btn + '</td></tr>';
-    }).join('') + '</tbody></table>' + (rv.status === 'running' ? running('서기가 합격 조건을 반영해 수정본을 쓰는 중') : '') + (rv.status === 'error' ? errorBox(rv) : '') + preview() + '</section>' +
+    }).join('') + '</tbody></table>' + (rv.status === 'running' ? running('서기가 합격 조건을 반영해 수정본을 쓰는 중', rv) : '') + (rv.status === 'error' ? errorBox(rv) : '') + preview() + '</section>' +
     (MODE === 'browser' ? '<section class="card col"><div class="h3">기록 파일 받기</div><p style="font-size:14px">재판 기록을 ZIP 파일 하나로 내려받습니다. 브라우저를 닫으면 화면의 기록은 사라지니 꼭 받아 두세요.</p>' +
       '<button class="btn primary big" data-act="save">ZIP으로 받기</button>' :
     '<section class="card col"><div class="h3">내 PC에 저장</div><p style="font-size:14px">이 PC의 폴더에 파일로 저장합니다. 노션에는 아무것도 쓰지 않습니다.</p>' +
@@ -360,9 +369,7 @@ var ACT = {
   clearJd: function () { act('clear-files', { kind: 'jd' }); },
   clearCover: function () { act('clear-files', { kind: 'cover' }); },
   jd: function () {
-    var mode = ui.input;
-    if (mode === 'link' && !/^https?:\/\//.test(ui.url.trim())) return toast('공고 링크를 넣어 주세요 (https://로 시작)');
-    act('jd', { mode: mode, url: ui.url.trim(), text: ui.paste });
+    act('jd', { mode: ui.input, text: ui.paste });
   },
   reanalyze: function () { act('jd/reanalyze', { extra: ui.extra }).then(function () { ui.extra = ''; }); },
   confirmJd: function () { act('jd/confirm'); },

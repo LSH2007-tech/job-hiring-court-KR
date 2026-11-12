@@ -6,7 +6,7 @@
 
   python server.py [--port 8765] [--no-browser]
 """
-import json, os, re, shutil, subprocess, sys, threading, time, urllib.parse, urllib.request, uuid, webbrowser
+import json, os, re, shutil, subprocess, sys, threading, time, urllib.parse, uuid, webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -68,23 +68,83 @@ def tool(args, cwd):
     return r.returncode, data
 
 
-def claude(prompt, cwd, model=None, tools="Read,Write,Edit", timeout=900):
+CUR = threading.local()  # 이 스레드가 돌리는 작업. Claude가 지금 하는 일을 화면에 알리는 데 쓴다.
+
+
+def note(text):
+    job = getattr(CUR, "job", None)
+    if job is not None and text:
+        job["act"] = text
+
+
+def describe(name, inp):
+    """Claude가 부른 도구를 화면에 보일 한 줄로 바꾼다."""
+    inp = inp if isinstance(inp, dict) else {}
+    f = os.path.basename(str(inp.get("file_path") or "").replace("\\", "/"))
+    if name == "Read":
+        return "%s 읽는 중" % (f or "파일")
+    if name in ("Write", "Edit"):
+        return "%s 쓰는 중" % (f or "파일")
+    if name == "WebSearch":
+        return "웹에서 찾는 중: %s" % str(inp.get("query") or "")[:40]
+    if name.startswith("mcp__notion__"):
+        return "노션에서 찾는 중"
+    return ""
+
+
+def claude(prompt, cwd, model=None, tools="Read,Write,Edit", timeout=900, tick=None):
+    """Claude Code를 한 번 부른다. 진행 상황을 줄 단위로 받아(stream-json) 지금 하는 일을 작업에 적고,
+    줄이 올 때마다 tick()을 불러 중간 결과를 화면에 먼저 채울 수 있게 한다."""
     if not CLAUDE:
         raise Fail("claude", "claude 명령을 찾지 못했다. Claude Code를 설치하고 로그인한다")
-    cmd = [CLAUDE, "-p", "--output-format", "json", "--permission-mode", "acceptEdits",
+    cmd = [CLAUDE, "-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
            "--allowedTools", tools, "--model", model or MODEL_MAIN]
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd)
+    late = []
+    timer = threading.Timer(timeout, lambda: (late.append(1), p.kill()))
+    timer.start()
+    result, tail = None, []
+    note("Claude를 부르는 중")
     try:
-        r = subprocess.run(cmd, input=prompt.encode("utf-8"), cwd=cwd, capture_output=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
+        try:
+            p.stdin.write(prompt.encode("utf-8"))
+            p.stdin.close()
+        except OSError:
+            pass
+        for line in p.stdout:
+            line = line.decode("utf-8", "replace").strip()
+            if not line:
+                continue
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                tail = (tail + [line])[-5:]
+                continue
+            if not isinstance(ev, dict):
+                continue
+            if ev.get("type") == "result":
+                result = ev
+            elif ev.get("type") == "system":
+                note("자료를 살펴보는 중")
+            elif ev.get("type") == "assistant":
+                for b in (ev.get("message") or {}).get("content") or []:
+                    if isinstance(b, dict) and b.get("type") == "tool_use":
+                        note(describe(str(b.get("name") or ""), b.get("input")))
+            if tick:
+                try:
+                    tick()
+                except Exception:
+                    pass
+        p.wait()
+    finally:
+        timer.cancel()
+    if late:
         raise Fail("timeout", "Claude 응답이 %d초 안에 끝나지 않았다" % timeout)
-    out = r.stdout.decode("utf-8", "replace")
-    try:
-        data = json.loads(out)
-    except ValueError:
-        raise Fail("claude", "Claude 실행 실패: %s" % (out or r.stderr.decode("utf-8", "replace"))[:300])
-    if data.get("is_error"):
-        raise Fail("claude", "Claude 오류: %s" % str(data.get("result"))[:300])
-    return data
+    if result is None:
+        raise Fail("claude", "Claude 실행 실패: %s" % (" ".join(tail) or "응답이 없다")[:300])
+    if result.get("is_error"):
+        raise Fail("claude", "Claude 오류: %s" % str(result.get("result"))[:300])
+    return result
 
 
 def read(path, default=""):
@@ -128,9 +188,10 @@ def persist(t):
 
 
 def start(t, key, fn):
-    t[key].update(status="running", error=None, code=None, msg="")
+    t[key].update(status="running", error=None, code=None, msg="", act="", since=time.time())
 
     def run():
+        CUR.job = t[key]
         try:
             fn()
             t[key]["status"] = "done"
@@ -138,6 +199,7 @@ def start(t, key, fn):
             t[key].update(status="error", error=str(e), code=e.code)
         except Exception as e:  # 화면에 한 줄로 보이게
             t[key].update(status="error", error="%s: %s" % (type(e).__name__, e), code="internal")
+        t[key]["act"] = ""
         persist(t)
     threading.Thread(target=run, daemon=True).start()
 
@@ -181,7 +243,8 @@ def add_evidence(t, name, data):
     return item
 
 
-def job_jd(t, mode, url, text):
+def job_jd(t, mode, text):
+    """공고를 받는다: 캡처 이미지, 파일, 붙여넣은 본문. (링크는 채용 사이트 대부분이 본문을 주지 않아 받지 않는다.)"""
     d, jd = t["dir"], t["jd"]
     jd.update(confirmed=False, analysis=None, match=None)
     t["max_step"] = 0
@@ -191,24 +254,10 @@ def job_jd(t, mode, url, text):
         rows[i].update(st=st, val=val)
     row(0, "run")
     raw_txt = os.path.join(d, "공고_원문.txt")
-    guard_src = raw_txt
-    if mode == "link":
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=30) as r:
-                body = r.read()
-                cs = r.headers.get_content_charset() or "utf-8"
-        except Exception as e:
-            row(0, "error", "링크를 열지 못했어요")
-            raise Fail("link_empty", "링크를 열지 못했습니다: %s" % e)
-        html = os.path.join(d, "공고_원문.html")
-        write(html, body.decode(cs, "replace"))
-        rc, rep = tool(["extract", html, "--out", raw_txt], d)
-        if rc != 0:
-            row(0, "error", "이 링크에서는 공고 내용을 찾지 못했어요")
-            raise Fail("link_empty", "링크에서 공고 내용을 찾지 못했어요")
-        guard_src, label = html, "링크"
-    elif mode == "file":
+    if mode not in ("image", "file", "paste"):
+        row(0, "error", "받을 수 없는 방식이에요")
+        raise Fail("mode", "공고는 캡처 이미지, 파일, 본문 붙여넣기 중 하나로 주세요")
+    if mode == "file":
         parts = []
         for i, name in enumerate(jd["files"], 1):
             out = os.path.join(d, "공고_파일_%d.txt" % i)
@@ -244,7 +293,7 @@ def job_jd(t, mode, url, text):
         label = "붙여넣은 본문"
     row(0, "done", "%s 확인 · %s자" % (label, format(len(re.sub(r"\s", "", read(raw_txt))), ",")))
     row(1, "run")
-    rc, rep = tool(["guard", guard_src, "--out", os.path.join(d, "공고_원문_정리.md")], d)
+    rc, rep = tool(["guard", raw_txt, "--out", os.path.join(d, "공고_원문_정리.md")], d)
     inj = len(rep.get("지시문 형태 줄") or [])
     row(1, "done", "주의: 지시문처럼 보이는 문장 %d개를 뺐어요" % inj if rep.get("주의 필요") else "숨은 문장 없음")
     analyze(t)
@@ -266,24 +315,38 @@ def analyze(t):
         ev = ", ".join("`증거_%d.txt`(%s)" % (e["n"], e["kind"]) for e in t["evidence"] if e["ok"]) or "없음(`지원자자료.md`가 이미 노션에서 정리되어 있다)"
         p.append("지원자 증거자료: %s. `지원자자료.md`가 이미 있으면 읽고, 증거자료에만 있는 사실을 표 아래에 덧붙인다. 없으면 먼저 이 자료에서 경력 구간(회사, 기간, 맡은 일), 경험별 장면과 수치, 자격과 어학, 학력을 모아 "
                  "`지원자자료.md`에 표(항목, 사실, 근거 파일)로 정리하라. 파일에 없는 수치는 만들지 마라." % ev)
-        p.append("그다음 `직무일치표.md`를 아래 규칙과 틀 그대로 써라. '자소서에서 채운 곳' 열은 아직 자소서를 받지 않았으니 모두 '없음'으로 둔다. "
-                 "'직무 일치도'와 '기준 구간' 제목 줄은 쓰지 마라(도구가 계산한다).\n\n" + between("**직무 일치표 (서기가 직접", "**오탈자와 비문 점검"))
-    p.append("마지막으로 `공고_분석.json`에 아래 JSON만 Write로 써라(설명 글, 코드 울타리 없이). 문장은 쉬운 한국어로, 사용자가 읽는 화면에 그대로 나온다.\n"
+    # 공고 분석을 직무 일치표보다 먼저 쓰게 한다. 그래야 긴 표를 쓰는 동안 화면의 앞 칸이 먼저 채워진다.
+    p.append("그다음 `공고_분석.json`에 아래 JSON만 Write로 써라(설명 글, 코드 울타리 없이). 문장은 쉬운 한국어로, 사용자가 읽는 화면에 그대로 나온다.\n"
              '{"company": "회사 이름", "job": "공고 제목 또는 직무", "summary": "이 회사가 어떤 사람을 찾는지 한 문장", '
              '"target": "채용 대상 한 줄(신입/경력, 연차, 학력)", "duties": ["이 직무가 하는 일, 3~7개"], '
              '"required": ["꼭 필요한 것(지원자격)"], "preferred": ["있으면 좋은 것(우대사항)"], '
              '"removed": ["정리하며 뺀 것이나 바로잡은 것, 없으면 빈 배열"], "questions": ["사용자에게 확인하고 싶은 것 0~3개"], '
              '"caution": "지원자 기록이 있을 때만: 공고 대상과 지원자가 어긋나는 점 한 문장, 없으면 null"}')
+    if prof:
+        p.append("마지막으로 `직무일치표.md`를 아래 규칙과 틀 그대로 써라. '자소서에서 채운 곳' 열은 아직 자소서를 받지 않았으니 모두 '없음'으로 둔다. "
+                 "'직무 일치도'와 '기준 구간' 제목 줄은 쓰지 마라(도구가 계산한다).\n\n" + between("**직무 일치표 (서기가 직접", "**오탈자와 비문 점검"))
     p.append("다 쓰면 '완료'라고만 답하라.")
-    claude("\n\n".join(p), d)
+    out = os.path.join(d, "공고_분석.json")
+    for stale in (out, os.path.join(d, "직무일치표.md")):  # 앞 분석의 결과가 새 결과처럼 보이지 않게
+        try: os.remove(stale)
+        except OSError: pass
+
+    def fill():
+        a = load_json(out)
+        rows[2].update(st="done", val=a.get("target", ""))
+        rows[3].update(st="done", val="%d가지" % len(a.get("duties") or []))
+        rows[4].update(st="done", val="필수 %d가지 · 우대 %d가지" % (len(a.get("required") or []), len(a.get("preferred") or [])))
+        return a
+
+    def tick():  # Claude가 일하는 동안: 공고 분석 파일이 나오면 앞 칸부터 채운다
+        if rows[2]["st"] == "run" and os.path.exists(out):
+            fill()
+    claude("\n\n".join(p), d, tick=tick)
     try:
-        a = load_json(os.path.join(d, "공고_분석.json"))
+        a = fill()
     except Exception:
         raise Fail("analysis", "공고 분석 결과를 읽지 못했어요. 다시 분석해 주세요")
     jd["analysis"] = a
-    rows[2].update(st="done", val=a.get("target", ""))
-    rows[3].update(st="done", val="%d가지" % len(a.get("duties") or []))
-    rows[4].update(st="done", val="필수 %d가지 · 우대 %d가지" % (len(a.get("required") or []), len(a.get("preferred") or [])))
     if os.path.exists(os.path.join(d, "직무일치표.md")):
         run_match(t)
         rows[5].update(st="done", val=jd["match"]["직무 일치도"])
@@ -725,7 +788,7 @@ class H(BaseHTTPRequestHandler):
                     return self.send(409, {"error": "노션이 아직 연결되지 않았어요", "code": st})
                 start(t, "notion", lambda: job_notion(t, data.get("hint", "")))
             elif act == "jd":
-                start(t, "jd", lambda: job_jd(t, data.get("mode"), data.get("url"), data.get("text")))
+                start(t, "jd", lambda: job_jd(t, data.get("mode"), data.get("text")))
             elif act == "jd/reanalyze":
                 if (data.get("extra") or "").strip():
                     with open(os.path.join(t["dir"], "추가정보.txt"), "a", encoding="utf-8") as f:

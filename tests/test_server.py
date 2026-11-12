@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -107,6 +108,26 @@ class TestHttp(unittest.TestCase):
         self.assertEqual(self.req("POST", "/api/trial/%s/vote" % tid, {})[0], 409)
         self.assertEqual(self.req("GET", "/api/trial/%s/file?name=%s" % (tid, urllib.parse.quote("판결문.md")))[0], 404)
         self.assertEqual(self.req("GET", "/api/trial/nope")[0], 404)
+
+    def test_posting_by_link_is_refused(self):
+        # Postings come in as a screenshot, a file or pasted text. A link is refused before any Claude call.
+        tid = json.loads(self.req("POST", "/api/trial")[1])["id"]
+        self.assertEqual(self.req("POST", "/api/trial/%s/jd" % tid, {"mode": "link", "url": "https://example.com"})[0], 200)
+        for _ in range(50):
+            jd = json.loads(self.req("GET", "/api/trial/%s" % tid)[1])["jd"]
+            if jd["status"] != "running":
+                break
+            time.sleep(0.1)
+        self.assertEqual((jd["status"], jd["code"]), ("error", "mode"))
+        self.assertEqual(jd["rows"][0]["st"], "error")
+
+
+class TestClaudeProgress(unittest.TestCase):
+    def test_tool_calls_become_progress_lines(self):
+        self.assertEqual(server.describe("Read", {"file_path": "C:\\work\\공고_원문_정리.md"}), "공고_원문_정리.md 읽는 중")
+        self.assertEqual(server.describe("Write", {"file_path": "/tmp/x/직무일치표.md"}), "직무일치표.md 쓰는 중")
+        self.assertIn("웹에서 찾는 중", server.describe("WebSearch", {"query": "회사 과제"}))
+        self.assertEqual(server.describe("Other", None), "")
 
 
 if __name__ == "__main__":
