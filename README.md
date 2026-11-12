@@ -7,7 +7,7 @@
 
 내 자소서를 법정에 세워 보자. 공고 맞춤을 먼저 따지고, 탈락 위원과 합격 위원의 공방, 인사·임원·실무 배심의 독립 투표로 판결과 수정 조언을 받습니다. [한국어 안내는 아래](#한국어-안내)에 있습니다.
 
-> **Work in progress.** The rules, screens and scoring are still being tuned against real application results and may change between versions. Current plugin version: v1.6.0.
+> **Work in progress.** The rules, screens and scoring are still being tuned against real application results and may change between versions. Current plugin version: v1.6.1.
 
 - **Try it in the browser (no install):** https://lsh2007-tech.github.io/job-hiring-court-KR/app/
 - **Intro and install guide:** https://lsh2007-tech.github.io/job-hiring-court-KR/
@@ -53,7 +53,7 @@ Browser:  docs/app (GitHub Pages)  -> engine.js     -> Claude API (your key)  ->
 /plugin install hiring-court@lsh-skills
 ```
 
-Then ask Claude Code `취업재판 웹 열어 줘` (opens the web screen) or `서류 재판 열어 줘` (runs the trial in chat).
+Then say `취업 재판 시작` to Claude Code (opens the web screen), or `서류 재판 열어 줘` to run the trial in chat.
 Optional, for better PDF/Word reading: `python -m pip install "markitdown[pdf,docx,pptx,xlsx]"`.
 
 ## Development

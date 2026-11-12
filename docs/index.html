@@ -100,7 +100,7 @@ footer{text-align:center;color:var(--mute);font-size:13px;padding:24px 16px 40px
 <div class="grid">
 <div class="card"><span class="n">1</span><b class="t">플러그인 추가</b><p>Claude Code 입력창에 아래를 입력합니다.</p><pre>/plugin marketplace add LSH2007-tech/job-hiring-court-KR</pre></div>
 <div class="card"><span class="n">2</span><b class="t">설치</b><p>이어서 아래를 입력합니다.</p><pre>/plugin install hiring-court@lsh-skills</pre></div>
-<div class="card"><span class="n">3</span><b class="t">열기</b><p>Claude Code에 이렇게 말하면 브라우저에 화면이 열립니다.</p><pre>취업재판 웹 열어 줘</pre></div>
+<div class="card"><span class="n">3</span><b class="t">열기</b><p>Claude Code에 이렇게 말하면 브라우저에 화면이 열립니다.</p><pre>취업 재판 시작</pre></div>
 </div>
 <p class="note" style="margin-top:12px">PDF와 Word 파일을 더 정확히 읽으려면 한 번만 실행해 주세요: <code>python -m pip install "markitdown[pdf,docx,pptx,xlsx]"</code></p>
 </section>
@@ -121,7 +121,7 @@ footer{text-align:center;color:var(--mute);font-size:13px;padding:24px 16px 40px
 <div class="card">
 <p><b>Mock Hiring Court</b> is a Claude Code plugin that puts a Korean job application (자기소개서) on trial against a job posting. A prosecutor and a defender argue, three jurors (HR, executive, hiring manager) vote independently, and a judge returns a verdict with concrete revision advice.</p>
 <p><b>Two ways to run it, no hosted server either way.</b> (1) <a href="app/">Browser app</a>: no install; your browser calls the Claude API with your own API key (pay per use). (2) Claude Code plugin: a local server (<code>localhost</code>) drives your own logged-in Claude Code, so it runs on your Claude subscription and can read your Notion (read-only).</p>
-<p><b>Plugin install:</b> <code>/plugin marketplace add LSH2007-tech/job-hiring-court-KR</code>, then <code>/plugin install hiring-court@lsh-skills</code>, then ask Claude Code to open the web screen ("취업재판 웹 열어 줘"). Requires Claude Code (logged in) and Python 3.10+.</p>
+<p><b>Plugin install:</b> <code>/plugin marketplace add LSH2007-tech/job-hiring-court-KR</code>, then <code>/plugin install hiring-court@lsh-skills</code>, then ask Claude Code to open the web screen ("취업 재판 시작"). Requires Claude Code (logged in) and Python 3.10+.</p>
 <p><b>Language:</b> the interface, prompts and scoring rules are in Korean because the tool targets Korean hiring documents.</p>
 </div>
 </section>

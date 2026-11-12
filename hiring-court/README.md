@@ -86,7 +86,7 @@
 
 ```
 hiring-court/
-├── .claude-plugin/plugin.json   ← 플러그인 정보 (v1.6.0)
+├── .claude-plugin/plugin.json   ← 플러그인 정보 (v1.6.1)
 └── skills/hiring-court/
     ├── SKILL.md                 ← 스킬 본문 (재판 절차와 기준 전체)
     └── scripts/court_tool.py    ← 계산·검사 도구 (v1.3.1)
@@ -94,7 +94,7 @@ hiring-court/
 
 ## 버전
 
-- 플러그인 v1.6.0
+- 플러그인 v1.6.1
 - 스킬 판 2026-11-12 (V15.1)
 - 계산 도구 1.3.1
 
@@ -103,9 +103,9 @@ hiring-court/
 - Python 3.10 이상
 - 파일 글자 뽑기(권장): `python -m pip install "markitdown[pdf,docx,pptx,xlsx]"`. PDF, Word, PowerPoint, Excel을 제목과 표 구조가 살아 있는 마크다운으로 바꾼다. 설치하지 않으면 PDF는 `pypdf`(`python -m pip install pypdf`), Word와 hwpx는 내장 파서로 대신한다. PowerPoint와 Excel은 markitdown이 있어야 읽는다.
 
-## 웹 화면 (v1.6.0)
+## 웹 화면 (v1.6.1)
 
-`취업재판-웹` 스킬이 이 PC에서 로컬 웹 화면을 띄운다(`web/server.py`, 주소 `http://localhost:8765/`). 공고 접수부터 판결, 조언, 기록 저장까지 화면에서 단계별로 진행한다. Claude Code 밖에서 바로 열려면 `web/run.bat`을 실행한다.
+`취업재판-시작` 스킬이 이 PC에서 로컬 웹 화면을 띄운다(Claude Code에 "취업 재판 시작"이라고 말한다)(`web/server.py`, 주소 `http://localhost:8765/`). 공고 접수부터 판결, 조언, 기록 저장까지 화면에서 단계별로 진행한다. Claude Code 밖에서 바로 열려면 `web/run.bat`을 실행한다.
 
 - 판단은 이 PC에 로그인된 Claude Code(`claude -p`)가 하므로 사용자의 구독에서 돈다. 운영 서버나 API 키가 없다.
 - 지원자 기록: 증거자료 파일(이력서, 경력기술서, 기존 자소서) 또는 노션(읽기 전용). 노션은 Claude Code에 `notion` 이름으로 등록하고 한 번 로그인해야 한다.
