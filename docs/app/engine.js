@@ -12,8 +12,11 @@
  * vote checks and the tally are done here in code, mirroring court_tool.py.
  */
 (function (root) {
-  var SKILL_URL = 'https://raw.githubusercontent.com/LSH2007-tech/job-hiring-court-KR/main/hiring-court/skills/hiring-court/SKILL.md';
-  var SDK_URL = 'https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.137.0/+esm';
+  // Both files ship with the app (same origin, same commit). build_browser.py copies them next to this file.
+  // Nothing here is fetched from another host at run time except the Claude API itself.
+  var BASE = (typeof document !== 'undefined' && document.baseURI) || '';
+  var SKILL_URL = BASE ? new URL('SKILL.md', BASE).href : 'SKILL.md';
+  var SDK_URL = BASE ? new URL('vendor/anthropic-sdk-0.137.0.js', BASE).href : './vendor/anthropic-sdk-0.137.0.js';
   var MODEL_MAIN = 'claude-opus-5-5', MODEL_FAST = 'claude-sonnet-5-5';
   var FALLBACK_BETA = 'server-side-fallback-2026-07-01';
   var BANDS = { '높음': [45, 80], '중간': [20, 50], '낮음': [5, 25] }, LEVELS = ['낮음', '중간', '높음'];

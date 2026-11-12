@@ -9,7 +9,7 @@
 
 > **v1.6.3:** Security update. 보안 사항을 업데이트하였습니다.
 
-> **Work in progress.** The rules, screens and scoring are still being tuned against real application results and may change between versions. Current plugin version: v1.6.3.
+> **Work in progress.** The rules, screens and scoring are still being tuned against real application results and may change between versions. Current plugin version: v1.6.4.
 
 - **Try it in the browser (no install):** https://lsh2007-tech.github.io/job-hiring-court-KR/app/
 - **Intro and install guide:** https://lsh2007-tech.github.io/job-hiring-court-KR/
@@ -55,6 +55,8 @@ Browser:  docs/app (GitHub Pages)  -> engine.js     -> Claude API (your key)  ->
 /plugin install hiring-court@lsh-skills
 ```
 
+Each release is tagged (`v1.6.4`, ...), and what changed is in [CHANGELOG](hiring-court/CHANGELOG.md).
+
 Then say `취업 재판 시작` to Claude Code (opens the web screen), or `서류 재판 열어 줘` to run the trial in chat.
 Optional, for better PDF/Word reading: `python -m pip install "markitdown[pdf,docx,pptx,xlsx]"`.
 
@@ -63,7 +65,7 @@ Optional, for better PDF/Word reading: `python -m pip install "markitdown[pdf,do
 ```
 python -m unittest discover -s tests -v     # court_tool.py, local server, browser build
 node --test tests/engine.test.js            # browser engine logic
-python hiring-court/web/build_browser.py    # rebuild docs/app after changing hiring-court/web
+python hiring-court/web/build_browser.py    # rebuild docs/app after changing hiring-court/web or SKILL.md
 ```
 
 CI runs both suites on Ubuntu and Windows with Python 3.10 and 3.13. Issues and pull requests are welcome.
@@ -73,7 +75,7 @@ CI runs both suites on Ubuntu and Windows with Python 3.10 and 3.13. Issues and 
 | `hiring-court/skills/hiring-court/` | The trial rules (`SKILL.md`) and the counting tool (`scripts/court_tool.py`) |
 | `hiring-court/skills/court-web/` | Skill that launches the local web screen |
 | `hiring-court/web/` | Local app: stdlib Python server, shared front-end, browser engine |
-| `docs/` | GitHub Pages: intro page and the browser app (`docs/app/`, built from `hiring-court/web/`) |
+| `docs/` | GitHub Pages: intro page and the browser app (`docs/app/`, built from `hiring-court/web/` and `SKILL.md`) |
 | `tests/` | Python and Node tests |
 
 ## Why it was built and how it was tested
@@ -95,7 +97,7 @@ The sample is tiny and the postings differ, so this does not prove the tool caus
 
 - This project: [MIT License](LICENSE). Anyone may use, modify and share it.
 - The trial structure is adapted from **court-skill** by Alex Chen (MIT): https://github.com/alexyc9381/court-skill. Its full notice is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-- Optional libraries installed by the user: [markitdown](https://github.com/microsoft/markitdown) (MIT, Microsoft), [pypdf](https://github.com/py-pdf/pypdf) (BSD-3-Clause). The browser app loads [JSZip](https://github.com/Stuk/jszip) (MIT) and the [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) (MIT) from public CDNs.
+- Optional libraries installed by the user: [markitdown](https://github.com/microsoft/markitdown) (MIT, Microsoft), [pypdf](https://github.com/py-pdf/pypdf) (BSD-3-Clause). The browser app ships a bundled copy of the [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) (MIT) and loads [JSZip](https://github.com/Stuk/jszip) (MIT) from cdnjs at a fixed version with an integrity hash. Details are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 

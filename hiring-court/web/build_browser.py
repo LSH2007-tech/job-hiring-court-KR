@@ -10,17 +10,25 @@ Run this after changing anything in hiring-court/web/static/ or browser.html:
 tests/test_browser_build.py fails if docs/app/ is out of date.
 """
 import os
-import shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(os.path.dirname(os.path.dirname(HERE)), "docs", "app")
-FILES = [("browser.html", "index.html"), ("static/app.js", "app.js"), ("static/engine.js", "engine.js"), ("static/style.css", "style.css")]
+# The trial rules and the SDK are copied in too, so the published app never loads them from another host:
+# the rules always match the engine of the same commit, and no CDN can change the code that handles the API key.
+FILES = [("browser.html", "index.html"), ("static/app.js", "app.js"), ("static/engine.js", "engine.js"), ("static/style.css", "style.css"),
+         ("../skills/hiring-court/SKILL.md", "SKILL.md"), ("static/vendor/anthropic-sdk-0.137.0.js", "vendor/anthropic-sdk-0.137.0.js")]
 
 
 def build():
     os.makedirs(OUT, exist_ok=True)
     for src, dst in FILES:
-        shutil.copyfile(os.path.join(HERE, src), os.path.join(OUT, dst))
+        os.makedirs(os.path.dirname(os.path.join(OUT, dst)), exist_ok=True)
+        with open(os.path.join(HERE, src), "rb") as f:
+            data = f.read().replace(b"\r\n", b"\n")  # same bytes on Windows and Linux checkouts
+        with open(os.path.join(OUT, dst), "wb") as f:
+            f.write(data)
+    # GitHub Pages runs Jekyll by default, and Jekyll would rewrite SKILL.md (it has front matter). Serve files as they are.
+    open(os.path.join(os.path.dirname(OUT), ".nojekyll"), "a").close()
     return [os.path.join(OUT, d) for _, d in FILES]
 
 
