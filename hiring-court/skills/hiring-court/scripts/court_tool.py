@@ -17,7 +17,7 @@ import json, os, re, sys, statistics, unicodedata, zipfile
 from html.parser import HTMLParser
 from xml.etree import ElementTree
 
-VERSION = "1.3.1 (2026-11-12)"
+VERSION = "1.3.2 (2026-11-13)"
 # extract: 이보다 글자가 적으면 본문을 못 읽은 것으로 본다(자바스크립트로 본문을 불러오는 채용 사이트, 스캔 PDF).
 MIN_TEXT = 200
 # 링크(HTML)로 받은 공고에 본문이 있는지 보는 말. 하나도 없으면 껍데기 페이지로 본다.
@@ -136,29 +136,6 @@ class _Visible(HTMLParser):
 
 
 # ---------- extract ----------
-class _Visible(HTMLParser):
-    """HTML에서 화면에 보이는 글만 모은다(script, style, noscript 제외)."""
-    SKIP = {"script", "style", "noscript", "template"}
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.depth, self.parts = 0, []
-
-    def handle_starttag(self, tag, attrs):
-        if tag in self.SKIP:
-            self.depth += 1
-        elif tag in ("br", "p", "div", "li", "tr", "h1", "h2", "h3", "h4", "section", "article"):
-            self.parts.append("\n")
-
-    def handle_endtag(self, tag):
-        if tag in self.SKIP and self.depth:
-            self.depth -= 1
-
-    def handle_data(self, data):
-        if not self.depth:
-            self.parts.append(data)
-
-
 def _xml_text(data, para_tags):
     root = ElementTree.fromstring(data)
     out, buf = [], []
@@ -232,9 +209,14 @@ def extract(path):
         raise InputError("%s 파일은 직접 읽지 못한다. 한글이나 Word에서 PDF 또는 %s로 저장해 다시 준다"
                          % (ext, "hwpx" if ext == ".hwp" else "docx"))
     elif ext in (".html", ".htm"):
-        p = _Visible(); p.feed(read(path))
-        text = "".join(p.parts)
+        # guard와 같은 파서를 쓴다: 숨은 요소(흰 글씨, 크기 0, display:none)의 글은 뽑지 않는다.
+        p = _Visible(); p.feed(read(path)); p.close()
+        text = "".join(p.out)
         rep["형식"] = "HTML"
+        if p.blocks:
+            rep["숨은 요소 제외"] = len(p.blocks)
+            rep["경고"].append("화면에 보이지 않는 요소 %d개의 글은 뽑지 않았다. 접힌 공고 본문('더보기')일 수 있으면 "
+                              "원본 HTML에 guard를 돌려 보고에서 확인한다" % len(p.blocks))
     else:
         text = read(path)
         rep["형식"] = "텍스트"

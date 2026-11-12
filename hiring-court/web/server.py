@@ -5,8 +5,13 @@
 세기와 검사는 hiring-court 스킬의 court_tool.py가 한다. 프롬프트의 규칙과 틀은 SKILL.md에서 잘라 온다.
 
   python server.py [--port 8765] [--no-browser]
+
+보안: 이 서버는 이 PC의 Claude Code를 대신 부른다. 그래서 이 PC의 다른 웹 페이지나 프로그램이 서버를 몰래 부르지 못하게 막는다.
+  - 실행할 때마다 무작위 열쇠(TOKEN)를 만들고, 그 열쇠가 든 주소로 연 브라우저만 /api를 쓸 수 있다(HttpOnly, SameSite=Strict 쿠키).
+  - Host가 localhost나 127.0.0.1이 아니면 거절한다(DNS 리바인딩). 다른 출처(Origin)에서 온 요청도 거절한다(CSRF).
+  - Claude에는 Read, Write, Edit를 통째로 허용하지 않는다. 재판 폴더(작업 폴더) 안의 파일만 읽고 쓸 수 있다.
 """
-import json, os, re, shutil, subprocess, sys, threading, time, urllib.parse, uuid, webbrowser
+import hmac, json, os, re, secrets, shutil, subprocess, sys, threading, time, urllib.parse, uuid, webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +33,9 @@ JURORS = [("1", "인사", "인사담당자", "sonnet"), ("2", "임원", "임원�
 ROWS = ["공고문 받기", "숨은 문장 정리", "공고 대상", "주요 업무", "자격 요건과 우대", "직무 일치도"]
 
 TRIALS, LOCK = {}, threading.RLock()
+# 실행할 때마다 새로 만드는 열쇠. 이 값을 아는 브라우저(서버가 연 주소로 들어온 브라우저)만 /api를 쓸 수 있다.
+TOKEN = secrets.token_urlsafe(32)
+MAX_BODY = 50 * 1024 * 1024  # 올리는 파일 하나의 최대 크기
 
 
 class Fail(Exception):
@@ -92,14 +100,24 @@ def describe(name, inp):
     return ""
 
 
-def claude(prompt, cwd, model=None, tools="Read,Write,Edit", timeout=900, tick=None):
+def claude_cmd(model=None, tools=""):
+    """Claude Code를 부르는 명령. 파일 도구(Read, Write, Edit)는 --allowedTools에 넣지 않는다.
+    넣으면 이 PC의 모든 파일을 읽고 쓸 수 있게 된다(공고나 노션 글 속 지시문에 속으면 다른 파일이 새어 나갈 수 있다).
+    넣지 않으면 작업 폴더(재판 폴더) 안에서만 읽고, acceptEdits로 그 안에서만 쓴다.
+    tools에는 웹 검색, 노션처럼 따로 허용해야 하는 도구만 준다."""
+    cmd = [CLAUDE, "-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
+           "--disallowedTools", "Bash", "--model", model or MODEL_MAIN]
+    if tools:
+        cmd += ["--allowedTools", tools]
+    return cmd
+
+
+def claude(prompt, cwd, model=None, tools="", timeout=900, tick=None):
     """Claude Code를 한 번 부른다. 진행 상황을 줄 단위로 받아(stream-json) 지금 하는 일을 작업에 적고,
     줄이 올 때마다 tick()을 불러 중간 결과를 화면에 먼저 채울 수 있게 한다."""
     if not CLAUDE:
         raise Fail("claude", "claude 명령을 찾지 못했다. Claude Code를 설치하고 로그인한다")
-    cmd = [CLAUDE, "-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
-           "--allowedTools", tools, "--model", model or MODEL_MAIN]
-    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd)
+    p = subprocess.Popen(claude_cmd(model, tools), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd)
     late = []
     timer = threading.Timer(timeout, lambda: (late.append(1), p.kill()))
     timer.start()
@@ -363,7 +381,7 @@ def run_match(t):
 
 
 # ---------- 노션에서 지원자 기록 가져오기 (읽기 전용) ----------
-NOTION_TOOLS = "Read,Write,mcp__notion__notion-search,mcp__notion__notion-fetch,mcp__notion__notion-query-data-sources"
+NOTION_TOOLS = "mcp__notion__notion-search,mcp__notion__notion-fetch,mcp__notion__notion-query-data-sources"
 
 
 def notion_status():
@@ -436,7 +454,7 @@ def job_panel(t, note=""):
              '"view": "이 공고에서 무엇을 기준으로 판단하는가", "basis": "이 관점의 근거(출처 이름과 한 줄)"}, '
              '{"role": "임원진", ...}, {"role": "실무 담당자", ...}], '
              '"sources": [{"title": "출처 제목", "url": "주소", "note": "쓴 내용 한 줄"}]}\n다 쓰면 \'완료\'라고만 답하라.')
-    claude("\n\n".join(p), d, tools="Read,Write,WebSearch")
+    claude("\n\n".join(p), d, tools="WebSearch")
     try:
         data = load_json(os.path.join(d, "재판부.json"))
         assert len(data["jurors"]) == 3
@@ -565,7 +583,7 @@ def job_vote(t):
                  num, name, v.get("persona", ""), v.get("view", ""), name, files, num,
                  "기준 구간 없음(인사)" if role == "인사" else "기준 구간: %d~%d%%" % (band[0], band[1])),
              table, tmpl]
-        claude("\n\n".join(p), d, model=dict((r[1], r[3]) for r in JURORS)[role], tools="Read,Write")
+        claude("\n\n".join(p), d, model=dict((r[1], r[3]) for r in JURORS)[role])
 
     def run_all(targets):
         th = [threading.Thread(target=one, args=(n, r, nm)) for n, r, nm, _ in targets]
@@ -717,9 +735,68 @@ class H(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         return self.rfile.read(n) if n else b""
 
+    # ----- 누가 부르는지 확인 -----
+    def hosts(self):
+        port = self.server.server_address[1]
+        return {"%s:%d" % (h, port) for h in ("localhost", "127.0.0.1", "[::1]")}
+
+    def cookie_name(self):
+        return "hc_%d" % self.server.server_address[1]  # 쿠키는 포트를 가리지 않으므로 이름에 포트를 넣는다
+
+    def has_key(self):
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == self.cookie_name() and hmac.compare_digest(v.encode("utf-8"), TOKEN.encode("utf-8")):
+                return True
+        return False
+
+    def refuse(self, code, msg):
+        self.close_connection = True  # 본문을 읽지 않고 거절하므로 연결을 이어 쓰지 않는다
+        self.send(code, {"error": msg, "code": "auth"})
+        return False
+
+    def allowed(self, api):
+        """요청을 받아도 되는지 본다. 안 되면 거절 응답을 보내고 False."""
+        # 1) Host: 다른 도메인 이름으로 이 서버에 닿게 하는 DNS 리바인딩을 막는다.
+        if (self.headers.get("Host") or "").lower() not in self.hosts():
+            return self.refuse(403, "이 주소로는 열 수 없어요")
+        # 2) 출처: 다른 사이트의 페이지가 보낸 요청(CSRF)을 막는다.
+        origin = self.headers.get("Origin")
+        if origin is not None and origin.lower() not in {"http://" + h for h in self.hosts()}:
+            return self.refuse(403, "다른 사이트에서 온 요청은 받지 않아요")
+        if (self.headers.get("Sec-Fetch-Site") or "same-origin").lower() not in ("same-origin", "none"):
+            return self.refuse(403, "다른 사이트에서 온 요청은 받지 않아요")
+        # 3) 열쇠: 서버가 연 주소로 들어온 브라우저만 /api를 쓴다.
+        if api and not self.has_key():
+            return self.refuse(401, "열쇠가 없어요. 서버를 켠 창에 나온 주소로 다시 열어 주세요")
+        return True
+
+    def enter(self, q):
+        """대문: 주소의 열쇠(?k=)가 맞으면 쿠키로 바꿔 주고 열쇠 없는 주소로 보낸다. 응답을 보냈으면 True."""
+        k = q.get("k", [""])[0]
+        if k and hmac.compare_digest(k.encode("utf-8"), TOKEN.encode("utf-8")):
+            self.send_response(303)
+            self.send_header("Location", "/")
+            self.send_header("Set-Cookie", "%s=%s; Path=/; HttpOnly; SameSite=Strict" % (self.cookie_name(), TOKEN))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        if not self.has_key():
+            self.send(403, ("<!doctype html><meta charset=utf-8><title>취업재판</title>"
+                            "<body style='font-family:sans-serif;padding:40px'><h2>이 주소로는 열 수 없어요</h2>"
+                            "<p>서버를 켠 창(터미널)에 나온 주소로 열어 주세요. 주소 끝의 열쇠는 서버를 켤 때마다 바뀝니다.</p>"
+                            ).encode("utf-8"), "text/html; charset=utf-8")
+            return True
+        return False
+
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
+        if not self.allowed(u.path.startswith("/api/")):
+            return
+        if u.path == "/" and self.enter(q):
+            return
         m = re.fullmatch(r"/api/trial/([\w-]+)", u.path)
         if m:
             t = TRIALS.get(m.group(1))
@@ -747,6 +824,14 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
+        if not self.allowed(True):
+            return
+        try:
+            size = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            size = -1
+        if not 0 <= size <= MAX_BODY:
+            return self.refuse(413, "파일이 너무 커요(최대 %dMB)" % (MAX_BODY // 1048576))
         raw = self.body()
         try:
             if u.path == "/api/trial":
@@ -854,8 +939,9 @@ def main():
     if not CLAUDE:
         print("경고: claude 명령을 찾지 못했다. Claude Code를 설치하고 로그인해야 분석이 돈다.")
     srv = ThreadingHTTPServer(("127.0.0.1", port), H)
-    url = "http://localhost:%d/" % port
+    url = "http://localhost:%d/?k=%s" % (port, TOKEN)
     print("취업재판 웹앱: %s  (끝내려면 Ctrl+C)" % url)
+    print("주소 끝의 열쇠(k=...)는 켤 때마다 바뀐다. 다른 사람에게 보내지 않는다.", flush=True)
     if "--no-browser" not in sys.argv:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     try:

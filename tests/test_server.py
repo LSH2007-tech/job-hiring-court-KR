@@ -73,12 +73,56 @@ class TestHttp(unittest.TestCase):
     def tearDownClass(cls):
         cls.srv.shutdown()
 
-    def req(self, method, path, body=None, raw=None):
+    def req(self, method, path, body=None, raw=None, key=True, headers=None):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
         data = raw if raw is not None else (json.dumps(body).encode("utf-8") if body is not None else None)
-        c.request(method, path, body=data, headers={"Content-Type": "application/json"} if raw is None else {})
+        h = {"Content-Type": "application/json"} if raw is None else {}
+        if key:  # what the browser holds after opening the address the server printed
+            h["Cookie"] = "hc_%d=%s" % (self.port, server.TOKEN)
+        h.update(headers or {})
+        c.request(method, path, body=data, headers=h)
         r = c.getresponse()
         return r.status, r.read()
+
+    def test_api_needs_the_launch_key(self):
+        self.assertEqual(self.req("POST", "/api/trial", key=False)[0], 401)
+        self.assertEqual(self.req("GET", "/api/settings", key=False)[0], 401)
+        self.assertEqual(self.req("POST", "/api/trial", key=False, headers={"Cookie": "hc_%d=wrong" % self.port})[0], 401)
+        self.assertEqual(self.req("POST", "/api/pick-folder", key=False)[0], 401)
+
+    def test_front_door_swaps_the_key_for_a_cookie(self):
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
+        c.request("GET", "/?k=" + server.TOKEN)
+        r = c.getresponse(); r.read()
+        self.assertEqual(r.status, 303)
+        self.assertEqual(r.getheader("Location"), "/")
+        cookie = r.getheader("Set-Cookie")
+        self.assertIn("hc_%d=%s" % (self.port, server.TOKEN), cookie)
+        self.assertIn("HttpOnly", cookie)
+        self.assertIn("SameSite=Strict", cookie)
+        self.assertEqual(self.req("GET", "/", key=False)[0], 403)        # no key: explain, do not serve the app
+        self.assertEqual(self.req("GET", "/?k=wrong", key=False)[0], 403)
+
+    def test_other_hosts_and_origins_are_refused(self):
+        # DNS rebinding: the request reaches 127.0.0.1 but carries the attacker's host name.
+        self.assertEqual(self.req("GET", "/api/settings", headers={"Host": "evil.example:%d" % self.port})[0], 403)
+        self.assertEqual(self.req("GET", "/app.js", headers={"Host": "evil.example"})[0], 403)
+        # CSRF: another site's page posts to the local server.
+        self.assertEqual(self.req("POST", "/api/trial", headers={"Origin": "https://evil.example"})[0], 403)
+        self.assertEqual(self.req("POST", "/api/trial", headers={"Origin": "http://localhost:%d" % (self.port + 1)})[0], 403)
+        self.assertEqual(self.req("POST", "/api/trial", headers={"Sec-Fetch-Site": "cross-site"})[0], 403)
+        self.assertEqual(self.req("POST", "/api/trial", headers={"Sec-Fetch-Site": "same-site"})[0], 403)
+        # The app's own requests pass.
+        ok = {"Origin": "http://localhost:%d" % self.port, "Host": "localhost:%d" % self.port, "Sec-Fetch-Site": "same-origin"}
+        self.assertEqual(self.req("POST", "/api/trial", headers=ok)[0], 200)
+
+    def test_oversized_upload_is_refused(self):
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=30)
+        c.putrequest("POST", "/api/trial")
+        c.putheader("Cookie", "hc_%d=%s" % (self.port, server.TOKEN))
+        c.putheader("Content-Length", str(server.MAX_BODY + 1))
+        c.endheaders()
+        self.assertEqual(c.getresponse().status, 413)
 
     def test_index_and_static_files(self):
         for path in ("/", "/app.js", "/style.css"):
@@ -120,6 +164,29 @@ class TestHttp(unittest.TestCase):
             time.sleep(0.1)
         self.assertEqual((jd["status"], jd["code"]), ("error", "mode"))
         self.assertEqual(jd["rows"][0]["st"], "error")
+
+
+class TestClaudeScope(unittest.TestCase):
+    """Claude must not get blanket file access: a posting that fools it could then read any file on the PC."""
+
+    def allowed(self, cmd):
+        return cmd[cmd.index("--allowedTools") + 1].split(",") if "--allowedTools" in cmd else []
+
+    def test_file_tools_are_never_allowed_wholesale(self):
+        server.CLAUDE = server.CLAUDE or "claude"
+        for tools in ("", "WebSearch", server.NOTION_TOOLS):
+            cmd = server.claude_cmd(tools=tools)
+            for t in self.allowed(cmd):
+                self.assertNotIn(t.split("(")[0], ("Read", "Write", "Edit", "Bash", "Glob", "Grep"), cmd)
+            self.assertEqual(cmd[cmd.index("--disallowedTools") + 1], "Bash")
+            self.assertEqual(cmd[cmd.index("--permission-mode") + 1], "acceptEdits")
+        self.assertNotIn("--allowedTools", server.claude_cmd())
+
+    def test_no_call_site_passes_file_tools(self):
+        with open(os.path.join(ROOT, "hiring-court", "web", "server.py"), encoding="utf-8") as f:
+            src = f.read()
+        for bad in ('tools="Read', 'tools="Write', '"Read,', ',Write', ',Edit'):
+            self.assertNotIn(bad, src)
 
 
 class TestClaudeProgress(unittest.TestCase):
