@@ -60,7 +60,7 @@ Optional, for better PDF/Word reading: `python -m pip install "markitdown[pdf,do
 
 ```
 python -m unittest discover -s tests -v     # court_tool.py, local server, browser build
-node --test tests/                          # browser engine logic
+node --test tests/engine.test.js            # browser engine logic
 python hiring-court/web/build_browser.py    # rebuild docs/app after changing hiring-court/web
 ```
 
