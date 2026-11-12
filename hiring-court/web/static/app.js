@@ -20,11 +20,18 @@ function person(body, hair, w, kind) {
   return '<svg width="' + w + '" height="' + Math.round(w * 1.25) + '" viewBox="0 0 96 120" aria-hidden="true"><path d="M14 118C14 80 30 62 48 62s34 18 34 56z" fill="' + body + '" stroke="#1E1D24" stroke-width="2"/><path d="M40 62l8 10 8-10" fill="#fff" stroke="#1E1D24" stroke-width="2"/><circle cx="48" cy="36" r="20" fill="#F1D3B8" stroke="#1E1D24" stroke-width="2"/><path d="M28 33c1-13 9-19 20-19s19 6 20 19c-7-5-13-7-20-7s-13 2-20 7z" fill="' + hair + '" stroke="#1E1D24" stroke-width="2"/><circle cx="41" cy="38" r="2" fill="#1E1D24"/><circle cx="55" cy="38" r="2" fill="#1E1D24"/><path d="M43 47h10" stroke="#1E1D24" stroke-width="2" stroke-linecap="round"/>' + extra + '</svg>';
 }
 
-// ---------- 서버 ----------
-function post(path, body) {
-  return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
-    .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || '요청 실패'); return j; }); });
-}
+// ---------- 뒤쪽(backend) ----------
+// Two modes share this screen. Local mode talks to server.py (the user's Claude Code login);
+// browser mode (GitHub Pages) uses engine.js, which calls the Claude API with the user's own key.
+var MODE = window.HC_MODE || 'local';
+function json(r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || '요청 실패'); return j; }); }
+var API = window.HC_ENGINE || {
+  get: function (path) { return fetch(path).then(json); },
+  post: function (path, body) { return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).then(json); },
+  upload: function (id, kind, f) { return fetch('/api/trial/' + id + '/upload?kind=' + kind + '&name=' + encodeURIComponent(f.name), { method: 'POST', body: f }).then(json); },
+  file: function (id, name) { return fetch('/api/trial/' + id + '/file?name=' + encodeURIComponent(name)).then(function (r) { if (!r.ok) throw new Error('아직 만들어지지 않은 파일이에요'); return r.text(); }); }
+};
+function post(path, body) { return API.post(path, body); }
 function act(path, body) {
   return ensure().then(function () { return post('/api/trial/' + S.id + '/' + path, body); })
     .then(function (j) { setS(j); return j; }).catch(function (e) { toast(e.message); throw e; });
@@ -35,15 +42,14 @@ function upload(kind, files) {
   var p = ensure();
   Array.prototype.forEach.call(files, function (f) {
     p = p.then(function () {
-      return fetch('/api/trial/' + S.id + '/upload?kind=' + kind + '&name=' + encodeURIComponent(f.name), { method: 'POST', body: f })
-        .then(function (r) { return r.json(); }).then(setS);
+      return API.upload(S.id, kind, f).then(setS);
     });
   });
   return p.catch(function (e) { toast('파일을 올리지 못했어요: ' + e.message); });
 }
 setInterval(function () {
   if (!S) return;
-  fetch('/api/trial/' + S.id).then(function (r) { return r.json(); }).then(function (j) {
+  API.get('/api/trial/' + S.id).then(function (j) {
     var s = JSON.stringify(j);
     if (s !== last) { S = j; last = s; render(); }
   }).catch(function () {});
@@ -58,9 +64,10 @@ function titleScreen() {
     '<p style="font-size:18px;color:#D5DBEC">내 자소서를 법정에 세워 보자</p>' +
     '<div><div class="lineup">' + cast.map(function (c, i) { return '<div style="animation-delay:' + (i * 0.25) + 's">' + person(c[0], c[1], c[2], c[3]) + '<span>' + c[4] + '</span></div>'; }).join('') + '</div><div class="bench" style="margin:6px auto 0"></div></div>' +
     '<div class="row center"><button class="start" data-act="start">▶ START</button>' +
-    '<button class="ghost' + (S && S.notion.status === 'done' ? ' on' : '') + '" data-act="notion">' + (S && S.notion.status === 'done' ? '노션 연동됨' : 'Notion 연동') + '</button>' +
+    (MODE === 'browser' ? '' : '<button class="ghost' + (S && S.notion.status === 'done' ? ' on' : '') + '" data-act="notion">' + (S && S.notion.status === 'done' ? '노션 연동됨' : 'Notion 연동') + '</button>') +
     '<button class="ghost' + (ev.length ? ' on' : '') + '" data-act="toggleFiles">' + (ev.length ? '증거자료 ' + ev.length + '건' : '지원자 파일 넣기') + '</button></div>' +
-    '<div class="info"><b>지원자 파일 넣기</b><br>가지고 있는 C.V 파일(이력서, 경력기술서, 기존 자소서)을 넣으면 서기가 경력과 이력을 조사해 지원자의 스킬이 직무의 스킬과 맞는지 매칭합니다. 넣지 않아도 START로 시작할 수 있어요.<br><b>Notion 연동</b><br>노션에 정리된 지원자의 C.V, 즉 경력과 과거 지원 이력을 조사해 같은 방식으로 매칭합니다. 노션은 읽기만 하고 아무것도 쓰지 않습니다.</div>' +
+    '<div class="info"><b>지원자 파일 넣기</b><br>가지고 있는 C.V 파일(이력서, 경력기술서, 기존 자소서)을 넣으면 서기가 경력과 이력을 조사해 지원자의 스킬이 직무의 스킬과 맞는지 매칭합니다. 넣지 않아도 START로 시작할 수 있어요.' + (MODE === 'browser' ? '<br><b>브라우저 방식</b><br>내 Claude API 키로 이 브라우저에서 바로 돌아갑니다. 사용한 만큼 내 API 계정에서 요금이 나가고, 키는 이 브라우저에만 저장되어 Anthropic에만 보내집니다. 노션 연동은 Claude Code 방식에서 쓸 수 있어요. <button class="btn" style="margin-top:6px" data-act="changeKey">API 키 바꾸기</button>' :
+      '<br><b>Notion 연동</b><br>노션에 정리된 지원자의 C.V, 즉 경력과 과거 지원 이력을 조사해 같은 방식으로 매칭합니다. 노션은 읽기만 하고 아무것도 쓰지 않습니다.') + '</div>' +
     (ui.notionOpen ? notionPanel() : '') +
     (ui.filesOpen ? '<section class="panel col"><div><div class="h3">지원자 파일 넣기</div><p class="muted" style="font-size:14px">이력서, 경력기술서, 기존에 지원했던 자기소개서를 여러 개 넣을 수 있어요. (PDF, Word, 한글 hwpx, 텍스트)</p></div>' +
       '<label class="drop" for="ev-files">파일을 눌러서 고르세요<span class="small">여러 개 가능</span></label><input id="ev-files" type="file" multiple accept=".pdf,.docx,.hwpx,.txt,.md,.pptx" data-up="evidence">' +
@@ -270,9 +277,11 @@ function step5() {
         f.file === '수정본.md' ? '<button class="btn primary" data-act="revision"' + (rv.status === 'running' ? ' disabled' : '') + '>' + (rv.status === 'running' ? '쓰는 중…' : '수정본 만들기') + '</button>' : '<button class="btn" disabled>없음</button>';
       return '<tr><td><b>' + h(f.name) + '</b></td><td>' + h(f.desc) + '</td><td>' + btn + '</td></tr>';
     }).join('') + '</tbody></table>' + (rv.status === 'running' ? running('서기가 합격 조건을 반영해 수정본을 쓰는 중') : '') + (rv.status === 'error' ? errorBox(rv) : '') + preview() + '</section>' +
-    '<section class="card col"><div class="h3">내 PC에 저장</div><p style="font-size:14px">이 PC의 폴더에 파일로 저장합니다. 노션에는 아무것도 쓰지 않습니다. (노션에 남기기는 연결 설정 후 제공 예정)</p>' +
+    (MODE === 'browser' ? '<section class="card col"><div class="h3">기록 파일 받기</div><p style="font-size:14px">재판 기록을 ZIP 파일 하나로 내려받습니다. 브라우저를 닫으면 화면의 기록은 사라지니 꼭 받아 두세요.</p>' +
+      '<button class="btn primary big" data-act="save">ZIP으로 받기</button>' :
+    '<section class="card col"><div class="h3">내 PC에 저장</div><p style="font-size:14px">이 PC의 폴더에 파일로 저장합니다. 노션에는 아무것도 쓰지 않습니다.</p>' +
     '<label for="save-path">저장 위치</label><div class="row"><input id="save-path" type="text" style="flex:1 1 260px;width:auto;font-family:ui-monospace,Consolas,monospace;font-size:13px" data-bind="savePath" value="' + h(ui.savePath) + '"><button class="btn" data-act="pick">폴더 고르기</button></div>' +
-    '<button class="btn primary big" data-act="save">내 PC에 저장하기</button>' + (S.saved ? '<b style="color:var(--blue)" role="status">저장했습니다: ' + h(S.saved) + '</b>' : '') + '</section>' +
+    '<button class="btn primary big" data-act="save">내 PC에 저장하기</button>') + (S.saved ? '<b style="color:var(--blue)" role="status">저장했습니다: ' + h(S.saved) + '</b>' : '') + '</section>' +
     '<section class="soft" style="border-style:dashed"><b>이전 재판과 비교</b><br><span style="font-size:14px">' + (S.round > 1 ? '재심 ' + (S.round - 1) + '회차입니다. 이전 판결의 기록은 저장한 폴더에서 견주어 볼 수 있습니다.' : '첫 재판입니다. 수정본으로 재심을 열면 표결과 서류 예측이 어떻게 움직였는지 견주어 볼 수 있습니다.') + '</span></section>' +
     '<button class="btn primary big" data-act="go" data-n="6">재심 또는 제출 정하기</button>';
 }
@@ -309,7 +318,7 @@ function notionWait() {
   var tries = 0;
   notionTimer = setInterval(function () {
     if (ui.notionSt !== 'opened' || ++tries > 100) return clearInterval(notionTimer);
-    fetch('/api/notion/status').then(function (r) { return r.json(); }).then(function (j) {
+    API.get('/api/notion/status').then(function (j) {
       if (j.status === 'connected') { clearInterval(notionTimer); ui.notionSt = 'connected'; render(); }
     }).catch(function () {});
   }, 3000);
@@ -330,7 +339,7 @@ var ACT = {
   notion: function () { ui.notionOpen = !ui.notionOpen; ui.filesOpen = false; render(); if (ui.notionOpen && ui.notionSt !== 'connected') ACT.notionCheck(true); },
   notionCheck: function (auto) {
     ui.notionSt = 'checking'; render();
-    fetch('/api/notion/status').then(function (r) { return r.json(); }).then(function (j) {
+    API.get('/api/notion/status').then(function (j) {
       if (j.status === 'connected' || auto !== true) { ui.notionSt = j.status === 'connected' ? 'connected' : ''; render(); }
       else ACT.notionConnect();
     }).catch(function () { ui.notionSt = ''; render(); });
@@ -379,12 +388,12 @@ var ACT = {
   submit: function () { act('submit'); },
   revision: function () { act('revision'); },
   open: function (e) {
-    fetch('/api/trial/' + S.id + '/file?name=' + encodeURIComponent(e.dataset.f)).then(function (r) { if (!r.ok) throw new Error('아직 만들어지지 않은 파일이에요'); return r.text(); })
-      .then(function (t) { ui.preview = e.dataset.t; ui.previewText = t; render(); }).catch(function (x) { toast(x.message); });
+    API.file(S.id, e.dataset.f).then(function (t) { ui.preview = e.dataset.t; ui.previewText = t; render(); }).catch(function (x) { toast(x.message); });
   },
   closePreview: function () { ui.preview = null; render(); },
   pick: function () { post('/api/pick-folder').then(function (j) { if (j.path) { ui.savePath = j.path; render(); } }).catch(function (e) { toast(e.message); }); },
-  save: function () { act('save', { path: ui.savePath }); }
+  save: function () { act('save', { path: ui.savePath }); },
+  changeKey: function () { if (window.HC_SHOW_KEY) window.HC_SHOW_KEY(); }
 };
 app.addEventListener('click', function (ev) {
   var el = ev.target.closest('[data-act]');

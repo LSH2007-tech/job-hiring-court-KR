@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>취업재판 · 브라우저에서 바로</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+#keygate{position:fixed;inset:0;z-index:20;background:radial-gradient(ellipse at 50% 30%,#24345F 0%,#16223F 60%,#0E1630 100%);display:flex;align-items:center;justify-content:center;padding:16px}
+#keygate[hidden]{display:none}
+#keygate form{width:min(100%,560px);background:#fff;border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:12px}
+#keygate h1{font-size:22px;font-weight:900}
+#keygate ol{font-size:14px;line-height:1.8}
+</style>
+</head>
+<body>
+<div id="keygate" hidden>
+<form id="keyform">
+<h1>Claude API 키를 넣어 주세요</h1>
+<p style="font-size:14px">브라우저 방식은 설치 없이 이 페이지에서 바로 재판을 엽니다. 대신 Claude를 부를 때 <b>내 API 키</b>를 쓰고, 사용한 만큼 내 API 계정에서 요금이 나갑니다(재판 한 건에 Claude를 8번쯤 부릅니다).</p>
+<ol>
+<li><a href="https://platform.claude.com/" target="_blank" rel="noopener">Claude Console</a>에 가입하고 결제 수단을 등록합니다(Claude 구독과는 별개입니다).</li>
+<li>API Keys 메뉴에서 키를 만들어 아래에 붙여넣습니다.</li>
+</ol>
+<label for="apikey">API 키</label>
+<input id="apikey" type="password" autocomplete="off" placeholder="sk-ant-..." required>
+<label style="font-weight:500;display:flex;gap:8px;align-items:center"><input type="checkbox" id="remember" style="width:auto;min-height:auto"> 이 브라우저에 기억하기 (공용 PC에서는 끄세요)</label>
+<p class="small">키는 이 브라우저에만 저장되고 Anthropic API(api.anthropic.com)로만 보내집니다. 이 사이트에는 서버가 없습니다.</p>
+<button class="btn primary big" type="submit">시작하기</button>
+<p class="small">설치해서 Claude 구독으로 쓰려면 <a href="../">소개 페이지</a>의 Claude Code 방식을 보세요.</p>
+</form>
+</div>
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="engine.js"></script>
+<script>
+(function () {
+  var gate = document.getElementById('keygate');
+  window.HC_SHOW_KEY = function () { gate.hidden = false; document.getElementById('apikey').focus(); };
+  document.getElementById('keyform').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var k = document.getElementById('apikey').value.trim();
+    if (!/^sk-ant-/.test(k)) { alert('sk-ant- 로 시작하는 API 키를 넣어 주세요'); return; }
+    window.HC_ENGINE.setKey(k, document.getElementById('remember').checked);
+    document.getElementById('apikey').value = '';
+    gate.hidden = true;
+  });
+  if (!window.HC_ENGINE.hasKey()) gate.hidden = false;
+})();
+</script>
+<script src="app.js"></script>
+</body>
+</html>

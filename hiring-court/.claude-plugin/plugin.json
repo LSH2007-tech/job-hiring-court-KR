@@ -4,5 +4,7 @@
   "version": "1.6.0",
   "author": {
     "name": "LSH2007-tech"
-  }
+  },
+  "license": "MIT",
+  "repository": "https://github.com/LSH2007-tech/job-hiring-court-KR"
 }
