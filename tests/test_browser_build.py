@@ -1,5 +1,6 @@
 """The no-install browser app in docs/app/ must match the sources in hiring-court/web/."""
 import hashlib
+import json
 import os
 import re
 import unittest
@@ -11,7 +12,7 @@ SDK = "anthropic-sdk-0.137.0.js"
 SDK_SHA256 = "9f03e3535ee3a870cb6a38dc893e81503553b0043bf0bb787c73266e6b43ffb2"
 JSZIP_SRI = "sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
 PAIRS = [("browser.html", "index.html"), ("static/app.js", "app.js"), ("static/engine.js", "engine.js"), ("static/style.css", "style.css"),
-         ("../skills/hiring-court/SKILL.md", "SKILL.md"), ("static/vendor/" + SDK, "vendor/" + SDK)]
+         ("static/vendor/" + SDK, "vendor/" + SDK)]
 
 
 class TestBrowserBuild(unittest.TestCase):
@@ -50,8 +51,16 @@ class TestBrowserBuild(unittest.TestCase):
         with open(os.path.join(WEB, "browser.html"), encoding="utf-8") as f:
             self.assertIn(JSZIP_SRI, f.read())
 
-    def test_pages_serves_files_as_they_are(self):
-        self.assertTrue(os.path.isfile(os.path.join(ROOT, "docs", ".nojekyll")))
+    def test_rules_shipped_with_the_app_match_skill_md(self):
+        # The browser app reads the rules from docs/app/skill.json. It must be the current SKILL.md, word for word.
+        with open(os.path.join(ROOT, "hiring-court", "skills", "hiring-court", "SKILL.md"), encoding="utf-8-sig") as f:
+            skill = f.read().replace("\r\n", "\n")
+        path = os.path.join(APP, "skill.json")
+        self.assertTrue(os.path.isfile(path), "skill.json missing: run python hiring-court/web/build_browser.py")
+        with open(path, encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["skill"], skill, "skill.json is stale: run python hiring-court/web/build_browser.py")
+        # A .md file with front matter would be turned into HTML by GitHub Pages and the app would get a 404.
+        self.assertFalse(os.path.exists(os.path.join(APP, "SKILL.md")))
 
 
 if __name__ == "__main__":

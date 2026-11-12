@@ -15,7 +15,8 @@
   // Both files ship with the app (same origin, same commit). build_browser.py copies them next to this file.
   // Nothing here is fetched from another host at run time except the Claude API itself.
   var BASE = (typeof document !== 'undefined' && document.baseURI) || '';
-  var SKILL_URL = BASE ? new URL('SKILL.md', BASE).href : 'SKILL.md';
+  // The rules are shipped as JSON ({"skill": "<SKILL.md text>"}): GitHub Pages turns a .md file with front matter into HTML.
+  var SKILL_URL = BASE ? new URL('skill.json', BASE).href : 'skill.json';
   var SDK_URL = BASE ? new URL('vendor/anthropic-sdk-0.137.0.js', BASE).href : './vendor/anthropic-sdk-0.137.0.js';
   var MODEL_MAIN = 'claude-opus-5-5', MODEL_FAST = 'claude-sonnet-5-5';
   var FALLBACK_BETA = 'server-side-fallback-2026-07-01';
@@ -134,7 +135,8 @@
     return clientPromise;
   }
   function skill() {
-    if (!skillCache) skillCache = fetch(SKILL_URL).then(function (r) { if (!r.ok) throw Fail('skill', '재판 규칙(SKILL.md)을 불러오지 못했어요'); return r.text(); });
+    if (!skillCache) skillCache = fetch(SKILL_URL).then(function (r) { if (!r.ok) throw Fail('skill', '재판 규칙(SKILL.md)을 불러오지 못했어요'); return r.json(); })
+      .then(function (j) { if (!j || typeof j.skill !== 'string') throw Fail('skill', '재판 규칙(SKILL.md)을 불러오지 못했어요'); return j.skill; });
     return skillCache;
   }
 
