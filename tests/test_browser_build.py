@@ -65,7 +65,9 @@ class TestBrowserBuild(unittest.TestCase):
 
 class TestReadmeLanguages(unittest.TestCase):
     """Every README comes in Korean and English. They must link to each other and name the same version."""
-    PAIRS = [("publish/README.md", "publish/README.ko.md"), ("hiring-court/README.en.md", "hiring-court/README.md")]
+    # The public root READMEs live in publish/ in the development repo and at the root of the published repo.
+    HOME = "publish" if os.path.isfile(os.path.join(ROOT, "publish", "README.ko.md")) else "."
+    PAIRS = [(HOME + "/README.md", HOME + "/README.ko.md"), ("hiring-court/README.en.md", "hiring-court/README.md")]
 
     def test_both_languages_exist_and_link_to_each_other(self):
         for en, ko in self.PAIRS:
@@ -73,7 +75,7 @@ class TestReadmeLanguages(unittest.TestCase):
                 en_text = f.read()
             with open(os.path.join(ROOT, ko), encoding="utf-8") as f:
                 ko_text = f.read()
-            self.assertTrue(en_text.startswith("[KR](%s) | **EN**" % os.path.basename(ko).replace("README.ko.md", "README.ko.md")), en)
+            self.assertTrue(en_text.startswith("[KR](%s) | **EN**" % os.path.basename(ko)), en)
             self.assertTrue(ko_text.startswith("**KR** | [EN](%s)" % os.path.basename(en)), ko)
 
     def test_both_languages_name_the_plugin_version(self):
