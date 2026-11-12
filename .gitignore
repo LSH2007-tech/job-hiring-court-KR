@@ -1,0 +1,28 @@
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Dependencies / builds
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+build/
+
+# Secrets
+.env
+*.key
+
+# hiring-court-web: 시험용 공고와 분석 결과 (예시 데이터, 커밋하지 않음)
+hiring-court-web/test-jd/
+
+# hiring-court-web: 내 PC에 저장한 재판 기록 (개인 자료, 커밋하지 않음)
+hiring-court-web/records/
+

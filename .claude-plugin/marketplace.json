@@ -1,0 +1,17 @@
+{
+  "name": "lsh-skills",
+  "owner": {
+    "name": "LSH2007-tech"
+  },
+  "metadata": {
+    "description": "job hiring court (KR): 취업재판 Claude Code 플러그인"
+  },
+  "plugins": [
+    {
+      "name": "hiring-court",
+      "source": "./hiring-court",
+      "description": "취업 재판: 자소서를 모의 재판에 올려 JD 적합도, 찬반 공방, 배심원 투표로 서류 합격 가능성을 판결하고 첨삭 또는 면접 대비를 해 주는 스킬",
+      "version": "1.6.0"
+    }
+  ]
+}

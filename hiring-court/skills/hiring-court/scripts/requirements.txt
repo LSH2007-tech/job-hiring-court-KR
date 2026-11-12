@@ -1,0 +1,3 @@
+# 재판도구(court_tool.py)의 선택 의존성. 없어도 도구는 돌지만 파일 읽기 품질이 떨어진다.
+markitdown[pdf,docx,pptx,xlsx]>=0.1.9
+pypdf>=5
