@@ -17,7 +17,7 @@ import json, os, re, sys, statistics, unicodedata, zipfile
 from html.parser import HTMLParser
 from xml.etree import ElementTree
 
-VERSION = "1.3.2 (2026-11-13)"
+VERSION = "1.3.3 (2026-11-13)"
 # extract: 이보다 글자가 적으면 본문을 못 읽은 것으로 본다(자바스크립트로 본문을 불러오는 채용 사이트, 스캔 PDF).
 MIN_TEXT = 200
 # 링크(HTML)로 받은 공고에 본문이 있는지 보는 말. 하나도 없으면 껍데기 페이지로 본다.
@@ -68,8 +68,30 @@ def parse_band(s):
 
 
 # ---------- guard (공고문 정리) ----------
-HIDDEN_STYLE = re.compile(r"display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0(?![.\d])|opacity\s*:\s*0(?![.\d])"
-                          r"|color\s*:\s*(#fff(fff)?|white)\b|(?:height|width)\s*:\s*0(?:px)?\s*(;|$)", re.I)
+# 화면에 보이지 않게 만드는 스타일. 속성 이름 앞에 다른 글자가 붙은 것(background-color, border-width, line-height)은 세지 않는다.
+_P = r"(?<![-\w])"
+HIDDEN_STYLE = re.compile(
+    _P + r"display\s*:\s*none|" + _P + r"visibility\s*:\s*(hidden|collapse)"
+    r"|" + _P + r"font-size\s*:\s*(0*[0-2](\.\d+)?(px|pt)?|0*\.\d+(px|pt|em|rem|%)?|0+(em|rem|%))\s*(!important)?\s*(;|$)"
+    r"|" + _P + r"opacity\s*:\s*(0*\.0\d*|0+(\.0+)?)\s*(!important)?\s*(;|$)"
+    r"|" + _P + r"color\s*:\s*(#f[0-9a-f]f[0-9a-f]f[0-9a-f]\b|#fff\b|white\b|transparent\b"
+    r"|rgba?\(\s*2[4-5]\d\s*[, ]\s*2[4-5]\d\s*[, ]\s*2[4-5]\d\b|rgba\([^)]*,\s*0*(\.0+)?\s*\)|hsla?\([^)]*100%\s*[,)/ ])"
+    r"|" + _P + r"(height|width|max-height|max-width)\s*:\s*[01](\.0+)?(px)?\s*(!important)?\s*(;|$)"
+    r"|" + _P + r"(left|top|right|bottom|text-indent|margin-left|margin-top)\s*:\s*-\d{3,}"
+    r"|" + _P + r"clip\s*:\s*rect\(\s*[01](px)?[\s,]+[01](px)?[\s,]+[01](px)?[\s,]+[01](px)?\s*\)"
+    r"|" + _P + r"clip-path\s*:\s*(inset\(\s*(50|100)%|circle\(\s*0)"
+    r"|" + _P + r"transform\s*:[^;]*scale[XY]?\(\s*0(\.0+)?\s*[,)]", re.I)
+STYLE_BLOCK = re.compile(r"<style\b[^>]*>(.*?)</style\s*>", re.I | re.S)
+CSS_RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
+# 닫는 태그를 쓰지 않아도 되는 요소: 같은 종류가 다시 열리면 앞의 것이 닫힌다(브라우저와 같게).
+IMPLIED_END = {"p": {"p"}, "li": {"li"}, "dt": {"dt", "dd"}, "dd": {"dt", "dd"}, "tr": {"tr", "td", "th"},
+               "td": {"td", "th"}, "th": {"td", "th"}, "option": {"option"}, "thead": {"tr", "td", "th"},
+               "tbody": {"tr", "td", "th", "thead"}, "tfoot": {"tr", "td", "th", "tbody"}}
+# 블록 요소가 열리면 열려 있던 <p>가 닫힌다.
+CLOSES_P = {"address", "article", "aside", "blockquote", "div", "dl", "fieldset", "footer", "form", "h1", "h2", "h3", "h4",
+            "h5", "h6", "header", "hr", "main", "nav", "ol", "p", "pre", "section", "table", "ul"}
+# 이 요소를 넘어서는 위의 암묵적 닫기를 하지 않는다(안쪽 목록의 <li>가 바깥 <li>를 닫지 않게).
+SCOPE = {"ul", "ol", "table", "dl", "select", "div", "section", "article", "body", "html", "td", "th"}
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 BLOCK = {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article", "ul", "ol", "table"}
 INJECTION = [
@@ -90,20 +112,81 @@ INJECTION = [
 
 
 class _Visible(HTMLParser):
-    """보이는 글만 모으고, 숨은 요소의 글은 덩어리별로 따로 모은다(접힌 '더보기' 본문일 수 있어 버리지 않는다)."""
+    """보이는 글만 모으고, 숨은 요소의 글은 덩어리별로 따로 모은다(접힌 '더보기' 본문일 수 있어 버리지 않는다).
 
-    def __init__(self):
+    쓰는 법: v = _Visible.parse(html) 뒤에 v.out(보이는 글 조각), v.blocks(숨은 덩어리), v.comments(주석 수).
+    숨김 판별: style 속성, hidden과 aria-hidden 속성, 그리고 <style> 안의 규칙(.클래스, #아이디, 태그)."""
+
+    def __init__(self, css=()):
         super().__init__(convert_charrefs=True)
         self.out, self.stack, self.blocks, self.cur, self.comments = [], [], [], None, 0
+        self.css = set(css)  # 숨김 규칙의 선택자: ".cls", "#id", "tag", "tag.cls"
+
+    @classmethod
+    def parse(cls, text):
+        css = set()
+        for block in STYLE_BLOCK.findall(text):
+            block = re.sub(r"/\*.*?\*/", "", block, flags=re.S)
+            for sel, decl in CSS_RULE.findall(block):
+                if not HIDDEN_STYLE.search(decl):
+                    continue
+                for one in sel.split(","):
+                    # 마지막 단순 선택자만 본다(".a .b"는 ".b"). 넓게 잡아도 숨은 요소로 보고될 뿐 버려지지 않는다.
+                    last = re.split(r"[\s>+~]+", one.strip())[-1]
+                    last = re.sub(r"::?[\w-]+(\([^)]*\))?|\[[^\]]*\]", "", last).lower()
+                    if last and last != "*":
+                        css.add(last)
+        v = cls(css)
+        v.feed(text)
+        v.close()
+        v.finish()
+        return v
 
     def _hidden(self):
-        return any(h for h, _ in self.stack)
+        return any(h for _, h, _ in self.stack)
+
+    def _css_hidden(self, tag, a):
+        if not self.css:
+            return False
+        names = {tag}
+        ident = (a.get("id") or "").strip().lower()
+        if ident:
+            names |= {"#" + ident, tag + "#" + ident}
+        for c in (a.get("class") or "").lower().split():
+            names |= {"." + c, tag + "." + c}
+        return bool(names & self.css)
+
+    def _pop(self):
+        _, _, opened = self.stack.pop()
+        if opened and self.cur is not None:
+            t = re.sub(r"\s+", " ", "".join(self.cur)).strip()
+            if t:
+                self.blocks.append(t)
+            self.cur = None
+
+    def _imply_end(self, tag):
+        """<p>, <li>처럼 닫는 태그 없이 다시 열린 요소를 닫는다."""
+        closes = set(IMPLIED_END.get(tag, ()))
+        if tag in CLOSES_P:
+            closes.add("p")
+        if not closes:
+            return
+        for i in range(len(self.stack) - 1, -1, -1):
+            name = self.stack[i][0]
+            if name in closes:
+                while len(self.stack) > i:
+                    self._pop()
+                return
+            if name in SCOPE:
+                return
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
+        self._imply_end(tag)
         code = tag in ("script", "style", "noscript", "template")
         hide = code or "hidden" in a or (a.get("aria-hidden") == "true" and not a.get("role")) \
-            or bool(HIDDEN_STYLE.search(a.get("style") or ""))
+            or (tag == "input" and (a.get("type") or "").lower() == "hidden") \
+            or bool(HIDDEN_STYLE.search(a.get("style") or "")) or self._css_hidden(tag, a)
         if tag in BLOCK:
             (self.cur if self.cur is not None else self.out).append("\n")
         if tag in VOID:
@@ -111,17 +194,25 @@ class _Visible(HTMLParser):
         top = hide and not self._hidden()
         if top and not code:
             self.cur = []
-        self.stack.append((hide, top and not code))
+        self.stack.append((tag, hide, top and not code))
+
+    def handle_startendtag(self, tag, attrs):  # <br/>, <div/>: 열고 바로 닫는다
+        self.handle_starttag(tag, attrs)
+        if tag not in VOID:
+            self.handle_endtag(tag)
 
     def handle_endtag(self, tag):
-        if tag in VOID or not self.stack:
+        if tag in VOID:
             return
-        _, opened = self.stack.pop()
-        if opened and self.cur is not None:
-            t = re.sub(r"\s+", " ", "".join(self.cur)).strip()
-            if t:
-                self.blocks.append(t)
-            self.cur = None
+        # 짝이 없는 닫는 태그는 무시한다(브라우저와 같게). 그렇지 않으면 엉뚱한 요소를 닫아 숨은 글이 보이는 글로 넘어온다.
+        if not any(name == tag for name, _, _ in self.stack):
+            return
+        # 짝을 찾을 때까지 닫는다. 그 사이의 닫히지 않은 요소(<p>, <li>)도 함께 닫힌다.
+        while self.stack:
+            name = self.stack[-1][0]
+            self._pop()
+            if name == tag:
+                break
         if tag in BLOCK and not self._hidden():
             self.out.append("\n")
 
@@ -133,6 +224,11 @@ class _Visible(HTMLParser):
 
     def handle_comment(self, data):
         self.comments += 1
+
+    def finish(self):
+        """문서가 끝났는데 닫히지 않은 숨은 요소의 글도 보고에 남긴다."""
+        while self.stack:
+            self._pop()
 
 
 # ---------- extract ----------
@@ -210,7 +306,7 @@ def extract(path):
                          % (ext, "hwpx" if ext == ".hwp" else "docx"))
     elif ext in (".html", ".htm"):
         # guard와 같은 파서를 쓴다: 숨은 요소(흰 글씨, 크기 0, display:none)의 글은 뽑지 않는다.
-        p = _Visible(); p.feed(read(path)); p.close()
+        p = _Visible.parse(read(path))
         text = "".join(p.out)
         rep["형식"] = "HTML"
         if p.blocks:
@@ -251,9 +347,7 @@ def injection(line):
 def guard(text):
     rep = {"입력 형식": "텍스트"}
     if re.search(r"<\s*(html|body|div|p|span|section|table|ul|li|br)\b", text, re.I):
-        v = _Visible()
-        v.feed(text)
-        v.close()
+        v = _Visible.parse(text)
         text = "".join(v.out)
         rep["입력 형식"] = "HTML"
         rep["숨은 요소"] = [{"번호": i, "글자": len(b), "지시문 형태": injection(b) or "아님", "앞부분": b[:160]}

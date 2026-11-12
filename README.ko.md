@@ -9,7 +9,7 @@
 
 > **v1.6.3:** 보안 사항을 업데이트하였습니다.
 
-> **계속 고치는 중입니다.** 실제 지원 결과를 보며 규칙, 화면, 점수 계산을 계속 고치고 있어 버전마다 달라질 수 있습니다. 현재 플러그인 버전: v1.6.4.
+> **계속 고치는 중입니다.** 실제 지원 결과를 보며 규칙, 화면, 점수 계산을 계속 고치고 있어 버전마다 달라질 수 있습니다. 현재 플러그인 버전: v1.6.5.
 
 - **브라우저에서 바로 써 보기(설치 없음):** https://lsh2007-tech.github.io/job-hiring-court-KR/app/
 - **소개와 설치 안내:** https://lsh2007-tech.github.io/job-hiring-court-KR/
@@ -56,7 +56,7 @@
 /plugin install hiring-court@lsh-skills
 ```
 
-판마다 태그(`v1.6.4` 등)를 붙이고, 바뀐 내용은 [CHANGELOG](hiring-court/CHANGELOG.md)에 적습니다.
+판마다 태그(`v1.6.5` 등)를 붙이고, 바뀐 내용은 [CHANGELOG](hiring-court/CHANGELOG.md)에 적습니다.
 
 설치한 뒤 Claude Code에 `취업 재판 시작`이라고 말하면 웹 화면이 열리고, `서류 재판 열어 줘`라고 말하면 대화 안에서 재판이 진행됩니다.
 PDF와 Word를 더 잘 읽으려면(선택): `python -m pip install "markitdown[pdf,docx,pptx,xlsx]"`.

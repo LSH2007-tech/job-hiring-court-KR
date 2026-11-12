@@ -9,7 +9,7 @@
 
 > **v1.6.3:** Security update.
 
-> **Work in progress.** The rules, screens and scoring are still being tuned against real application results and may change between versions. Current plugin version: v1.6.4.
+> **Work in progress.** The rules, screens and scoring are still being tuned against real application results and may change between versions. Current plugin version: v1.6.5.
 
 - **Try it in the browser (no install):** https://lsh2007-tech.github.io/job-hiring-court-KR/app/
 - **Intro and install guide:** https://lsh2007-tech.github.io/job-hiring-court-KR/
@@ -56,7 +56,7 @@ Browser:  docs/app (GitHub Pages)  -> engine.js     -> Claude API (your key)  ->
 /plugin install hiring-court@lsh-skills
 ```
 
-Each release is tagged (`v1.6.4`, ...), and what changed is in [CHANGELOG](hiring-court/CHANGELOG.md).
+Each release is tagged (`v1.6.5`, ...), and what changed is in [CHANGELOG](hiring-court/CHANGELOG.md).
 
 Then say `취업 재판 시작` to Claude Code (opens the web screen), or `서류 재판 열어 줘` to run the trial in chat.
 Optional, for better PDF/Word reading: `python -m pip install "markitdown[pdf,docx,pptx,xlsx]"`.

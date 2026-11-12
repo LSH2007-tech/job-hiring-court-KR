@@ -93,17 +93,17 @@ The court setup, prediction log, misjudgement analysis, per-company reference ma
 
 ```
 hiring-court/
-├── .claude-plugin/plugin.json   ← plugin manifest (v1.6.4)
+├── .claude-plugin/plugin.json   ← plugin manifest (v1.6.5)
 └── skills/hiring-court/
     ├── SKILL.md                 ← the skill itself (the whole trial procedure and criteria, in Korean)
-    └── scripts/court_tool.py    ← counting and checking tool (v1.3.2)
+    └── scripts/court_tool.py    ← counting and checking tool (v1.3.3)
 ```
 
 ## Versions
 
-- Plugin v1.6.4
+- Plugin v1.6.5
 - Skill edition 2026-11-13 (V15.2)
-- Counting tool 1.3.2
+- Counting tool 1.3.3
 - Change history: [CHANGELOG.md](CHANGELOG.md) (Korean)
 
 ## Requirements
@@ -111,7 +111,7 @@ hiring-court/
 - Python 3.10 or later
 - Text extraction (recommended): `python -m pip install "markitdown[pdf,docx,pptx,xlsx]"`. It converts PDF, Word, PowerPoint and Excel to Markdown that keeps headings and tables. Without it, PDF falls back to `pypdf` (`python -m pip install pypdf`), and Word and hwpx use a built-in parser. PowerPoint and Excel need markitdown.
 
-## Web screen (v1.6.4)
+## Web screen (v1.6.5)
 
 The `취업재판-시작` skill starts a local web screen on this PC (say `취업 재판 시작` to Claude Code). The server is `web/server.py`, and it prints its address when it starts: `http://localhost:8765/?k=<key>`. The screen walks through every step, from posting intake to verdict, advice and saving the record. To open it outside Claude Code, run `web/run.bat`.
 
