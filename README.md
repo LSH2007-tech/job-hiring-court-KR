@@ -7,9 +7,11 @@
 
 **Put your Korean job application on trial.** job hiring court checks a 자기소개서 (Korean cover letter) against a job posting the way a hiring committee would: a prosecutor and a defender argue, three jurors (HR, executive, hiring manager) vote without seeing each other's votes, and a judge returns a verdict with concrete revision advice.
 
-> **v1.6.3:** Security update.
+> **What it is for:** it matches the posting's job description (JD) against your skills, shows which role fits, and helps finish the cover letter for that role so it has a better chance of passing. Hiring today puts heavy weight on the JD-skill match, so that match is analysed first.
 
-> **Work in progress.** The rules, screens and scoring are still being tuned against real application results and may change between versions. Current plugin version: v1.6.5.
+> **v1.6.6:** Security update.
+
+> **Work in progress.** The rules, screens and scoring are still being tuned against real application results and may change between versions. Current plugin version: v1.6.6.
 
 - **Try it in the browser (no install):** https://lsh2007-tech.github.io/job-hiring-court-KR/app/
 - **Intro and install guide:** https://lsh2007-tech.github.io/job-hiring-court-KR/
@@ -20,7 +22,7 @@
 | | Browser app | Claude Code plugin |
 |---|---|---|
 | Install | Nothing. Open the page | Claude Code (logged in) + Python 3.10+ |
-| Who pays for Claude | You, through your own **Claude API key** (pay per use) | You, through your own **Claude subscription** |
+| Who pays for Claude | You, through your own **Claude API key** (pay per use) | You, through your own **Claude subscription** (on Pro with Opus 5.5, one trial used about 20-30% of the 5-hour usage limit) |
 | Where it runs | Your browser calls the Claude API directly | A local server on your PC (`localhost`) drives Claude Code |
 | Applicant records | Upload files (resume, career description, past cover letters) | Upload files, or read-only **Notion** link |
 | Saving | Download a ZIP of the trial record | Saved to a folder you choose |
@@ -56,7 +58,7 @@ Browser:  docs/app (GitHub Pages)  -> engine.js     -> Claude API (your key)  ->
 /plugin install hiring-court@lsh-skills
 ```
 
-Each release is tagged (`v1.6.5`, ...), and what changed is in [CHANGELOG](hiring-court/CHANGELOG.md).
+Each release is tagged (`v1.6.6`, ...), and what changed is in [CHANGELOG](hiring-court/CHANGELOG.md).
 
 Then say `취업 재판 시작` to Claude Code (opens the web screen), or `서류 재판 열어 줘` to run the trial in chat.
 Optional, for better PDF/Word reading: `python -m pip install "markitdown[pdf,docx,pptx,xlsx]"`.

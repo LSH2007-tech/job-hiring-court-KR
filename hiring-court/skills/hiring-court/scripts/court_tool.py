@@ -17,9 +17,11 @@ import json, os, re, sys, statistics, unicodedata, zipfile
 from html.parser import HTMLParser
 from xml.etree import ElementTree
 
-VERSION = "1.3.3 (2026-11-13)"
-# extract: 이보다 글자가 적으면 본문을 못 읽은 것으로 본다(자바스크립트로 본문을 불러오는 채용 사이트, 스캔 PDF).
-MIN_TEXT = 200
+VERSION = "1.3.4 (2026-11-13)"
+# extract: 이보다 글자가 적으면 글자를 거의 못 읽은 것으로 본다(스캔 PDF, 본문을 따로 불러오는 페이지).
+# 이 숫자는 "아무것도 못 읽었다"만 가린다. 공고로 충분한지는 글자 수가 아니라 내용으로 서기(모델)가 판단한다:
+# 공고는 직무마다 길이가 달라서 100자짜리도 5,000자짜리도 있다. 최대 글자 수는 없다.
+MIN_TEXT = 30
 # 링크(HTML)로 받은 공고에 본문이 있는지 보는 말. 하나도 없으면 껍데기 페이지로 본다.
 POSTING_WORDS = r"자격|우대|업무|요건|담당|qualification|requirement|responsibilit"
 # 기준 구간: 이 한 곳에서만 정의한다(가설, 결과가 쌓이면 갱신).
@@ -330,7 +332,7 @@ def extract(path):
                           "공백 포함 글자 수는 이 글로 세지 않는다. 자소서면 Word, hwpx, 붙여넣기로 다시 받는다" % (hangul, spaces))
     rep["본문 부족"] = n < MIN_TEXT
     if rep["본문 부족"]:
-        rep["경고"].append("글자가 %d자뿐이다. 링크 페이지가 본문을 따로 불러오거나 스캔 파일일 수 있다. "
+        rep["경고"].append("글자를 거의 읽지 못했다(%d자). 링크 페이지가 본문을 따로 불러오거나 스캔 파일일 수 있다. "
                           "캡처 이미지, PDF, 본문 붙여넣기로 다시 받는다" % n)
     elif rep["형식"] == "HTML" and not re.search(POSTING_WORDS, text, re.I):
         # 메뉴와 하단 정보만 있는 껍데기 페이지: 글자는 많아도 공고에 늘 나오는 말이 없다.

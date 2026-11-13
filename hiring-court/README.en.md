@@ -4,6 +4,8 @@
 
 A Claude skill that puts a Korean cover letter (자기소개서) through a **mock trial**: several AI roles argue for and against it, vote independently, and return a **prediction of whether it passes the paper screen plus a ruling on what to fix**.
 
+> **What this court is for:** it matches the posting's job description (JD) against the applicant's skills, shows which role fits, and helps finish the cover letter for that role so it has a better chance of passing. Hiring today puts heavy weight on how well the JD and the applicant's skills match, so that match is analysed first.
+
 > A single AI reviewer drifts toward what sounds nice. Splitting the roles, and hiding each juror's vote from the others, is what reduces that drift.
 
 The trial rules and prompts are written in Korean on purpose, because the skill judges Korean hiring documents. This page explains the skill in English.
@@ -81,6 +83,8 @@ Reference range by job-match level: **high 45~80% · medium 20~50% · low 5~25%*
 
 By default the skill uses **4** sub-agent calls (1 debate + 3 jurors). Re-run rules can raise that to 7~8, and each witness adds one (5 by default with the competitor witness).
 
+**Token use of the web screen (measured once, 2026-11-14):** one trial (posting analysis, case record, debate, 3 jurors, verdict, recommended draft) called Claude 10 times. Opus 5.5 used about 95k output and 2.5M input tokens (mostly cache reads); Sonnet 5.5 about 3.5k output and 250k input tokens. On the Pro plan (Opus 5.5, high effort) that was about 20-30% of the 5-hour usage limit. First-time users should check their remaining usage before starting. Longer cover letters and retrials use more.
+
 ## Record store (Notion)
 
 The court setup, prediction log, misjudgement analysis, per-company reference material and interview preparation are saved under a Notion page named `서류재판 기록` ("document trial records"). The same record continues whether the trial is opened in claude.ai or in Claude Code. When Notion cannot be written to, the records go to claude.ai project documents or to the working folder.
@@ -93,17 +97,17 @@ The court setup, prediction log, misjudgement analysis, per-company reference ma
 
 ```
 hiring-court/
-├── .claude-plugin/plugin.json   ← plugin manifest (v1.6.5)
+├── .claude-plugin/plugin.json   ← plugin manifest (v1.6.6)
 └── skills/hiring-court/
     ├── SKILL.md                 ← the skill itself (the whole trial procedure and criteria, in Korean)
-    └── scripts/court_tool.py    ← counting and checking tool (v1.3.3)
+    └── scripts/court_tool.py    ← counting and checking tool (v1.3.4)
 ```
 
 ## Versions
 
-- Plugin v1.6.5
+- Plugin v1.6.6
 - Skill edition 2026-11-13 (V15.2)
-- Counting tool 1.3.3
+- Counting tool 1.3.4
 - Change history: [CHANGELOG.md](CHANGELOG.md) (Korean)
 
 ## Requirements
@@ -111,7 +115,7 @@ hiring-court/
 - Python 3.10 or later
 - Text extraction (recommended): `python -m pip install "markitdown[pdf,docx,pptx,xlsx]"`. It converts PDF, Word, PowerPoint and Excel to Markdown that keeps headings and tables. Without it, PDF falls back to `pypdf` (`python -m pip install pypdf`), and Word and hwpx use a built-in parser. PowerPoint and Excel need markitdown.
 
-## Web screen (v1.6.5)
+## Web screen (v1.6.6)
 
 The `취업재판-시작` skill starts a local web screen on this PC (say `취업 재판 시작` to Claude Code). The server is `web/server.py`, and it prints its address when it starts: `http://localhost:8765/?k=<key>`. The screen walks through every step, from posting intake to verdict, advice and saving the record. To open it outside Claude Code, run `web/run.bat`.
 
@@ -119,6 +123,6 @@ The `취업재판-시작` skill starts a local web screen on this PC (say `취�
 - Applicant records: evidence files (resume, career description, earlier cover letters) or Notion (read-only). Notion must be registered in Claude Code under the name `notion` and logged in once.
 - The posting is taken as a screenshot, a file (PDF, Word, hwpx) or pasted text. Links are not accepted, because most job sites do not return the posting body from a link alone. Use Ctrl+P and "Save as PDF" on the posting page and upload that file.
 - Each step shows what Claude is doing now (the file it reads or writes) and the elapsed time.
-- v1.6.3 was a security update.
+- v1.6.3 and v1.6.6 were security updates.
 - User data is kept outside the plugin folder (`~/.hiring-court/`; the default save folder is `Documents/취업재판`).
 - Not available yet: interview-preparation mode, competitor witness, prediction log.

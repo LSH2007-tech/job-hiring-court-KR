@@ -49,6 +49,7 @@ footer{text-align:center;color:var(--mute);font-size:13px;padding:24px 16px 40px
 <div class="sub">MOCK HIRING COURT</div>
 <h1>취업재판</h1>
 <p>내 자소서를 법정에 세워 보자</p>
+<p style="font-size:15px;margin-top:12px">채용 공고의 직무(JD)와 내 스킬을 맞춰 보고, 어떤 직무가 맞는지, 그 직무에 맞춰 자소서를 어떻게 완성해야 합격 가능성을 높일 수 있는지 돕는 AI입니다.</p>
 <div class="ctas"><a class="cta" href="app/">브라우저에서 바로 시작</a><a class="cta ghostcta" href="#install">Claude Code에 설치</a></div>
 <div class="lang"><a href="#how">필요한 것과 동작 방식</a> · <a href="#english">English summary</a></div>
 </header>
@@ -75,7 +76,7 @@ footer{text-align:center;color:var(--mute);font-size:13px;padding:24px 16px 40px
 <tbody>
 <tr><th>설치</th><td>없음. 이 사이트에서 바로 엽니다</td><td>Claude Code(로그인) + Python 3.10 이상</td></tr>
 <tr><th>필요한 것</th><td><b>Claude API 키</b> (<a href="https://platform.claude.com/" target="_blank" rel="noopener">Claude Console</a>에서 발급, 결제 수단 등록)</td><td><b>Claude 구독</b>(Pro 이상)과 Claude Code</td></tr>
-<tr><th>비용</th><td>사용한 만큼 내 API 계정에서 나갑니다. 재판 한 건에 Claude를 8번쯤 부릅니다</td><td>내 구독 한도 안에서 돕니다. 추가 결제 없음</td></tr>
+<tr><th>비용</th><td>사용한 만큼 내 API 계정에서 나갑니다. 재판 한 건에 Claude를 8번쯤 부릅니다</td><td>내 구독 한도 안에서 돕니다. 추가 결제 없음. Pro 요금제(Opus 5.5)에서 재판 한 번에 5시간 사용 한도의 약 20~30%를 씁니다</td></tr>
 <tr><th>어디서 도나</th><td>내 브라우저가 Claude API를 직접 부릅니다. API 키는 이 브라우저에만 저장됩니다</td><td>내 PC의 작은 서버(localhost)가 내 Claude Code를 실행합니다</td></tr>
 <tr><th>지원자 기록</th><td>파일 넣기(이력서, 경력기술서, 기존 자소서)</td><td>파일 넣기 또는 <b>노션 연동</b>(버튼 한 번 로그인, 읽기 전용)</td></tr>
 <tr><th>기록 저장</th><td>ZIP 파일로 내려받기</td><td>내가 고른 폴더에 저장</td></tr>
@@ -107,7 +108,7 @@ footer{text-align:center;color:var(--mute);font-size:13px;padding:24px 16px 40px
 
 <section>
 <h2>자주 묻는 질문</h2>
-<details><summary>비용은 누가 내나요?</summary><p>사용자 본인이 냅니다. 브라우저 방식은 내 API 키로 쓴 만큼, Claude Code 방식은 내 구독 한도 안에서 돕니다. 운영자가 따로 받는 돈이나 가입은 없습니다.</p></details>
+<details><summary>비용은 누가 내나요?</summary><p>사용자 본인이 냅니다. 브라우저 방식은 내 API 키로 쓴 만큼, Claude Code 방식은 내 구독 한도 안에서 돕니다. 재판 한 번(공고 분석부터 판결, 추천 초안까지)에 Claude를 10번 안팎 부르므로, Pro 요금제에서는 시작 전에 남은 사용량을 확인하세요. 운영자가 따로 받는 돈이나 가입은 없습니다.</p></details>
 <details><summary>Claude Code 없이 쓸 수 있나요?</summary><p>네. 위의 '브라우저에서 바로 시작'을 누르고 Claude API 키를 넣으면 설치 없이 씁니다. Claude 구독(Pro, Max)은 Claude 앱과 Claude Code 안에서만 쓸 수 있어서, 웹사이트에서는 API 키가 필요합니다.</p></details>
 <details><summary>내 이력서와 자소서는 어디로 가나요?</summary><p>운영 서버가 없습니다. 브라우저 방식은 내 브라우저에서 Anthropic API로만, Claude Code 방식은 내 PC에서 Claude로만 전달됩니다. 기록은 내 PC에 저장됩니다.</p></details>
 <details><summary>고치거나 가져다 써도 되나요?</summary><p>네. MIT 라이선스로 공개되어 누구나 쓰고, 고치고, 나눌 수 있습니다. <a href="https://github.com/LSH2007-tech/job-hiring-court-KR">GitHub 저장소</a>에 이슈와 풀 리퀘스트를 환영합니다.</p></details>

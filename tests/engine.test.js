@@ -49,11 +49,30 @@ test('every prompt section the engine slices exists in SKILL.md', () => {
   const skill = fs.readFileSync(path.join(__dirname, '..', 'hiring-court', 'skills', 'hiring-court', 'SKILL.md'), 'utf8');
   const anchors = [['**직무 일치표 (서기가 직접', '**오탈자와 비문 점검'], ['### 배심원과 관점 후보', '## 4단계'], ['## 2단계', '## 3단계'],
     ['## 3단계', '### 배심원과 관점 후보'], ['**배심원마다 읽는 자료와 질문이 다르다', '**기준 구간은 임원진'], ['**서류 재판 판결문**', '**면접 대비 재판 판결문:**'],
-    ['### 4-2. 조언', '### 4-3. 수정본'], ['### 0순위: 이 회사에 필요한 사람인가', '### 2. 포지셔닝'], ['### 4-3. 수정본', '### 4-4.'], ['## 자소서 작성 기준', '## 모드']];
+    ['### 4-2. 조언', '### 4-3. 수정본'], ['### 0순위: 이 회사에 필요한 사람인가', '### 2. 포지셔닝'], ['### 4-3. 수정본', '### 4-4.'], ['## 자소서 작성 기준', '## 모드'],
+    ['**자소서 초안 (', '작업 폴더에 `서류재판/']];
   for (const [a, b] of anchors) assert.ok(E.between(skill, a, b).length > 100, a);
   assert.ok(E.codeblock(E.between(skill, '## 3단계', '### 배심원과 관점 후보'), '배심원 <n>번').includes('배심원'));
 });
 
 test('lastJson reads the final json block of a tool-using answer', () => {
   assert.deepStrictEqual(E.lastJson('검색했습니다.\n```json\n{"found": false}\n```'), { found: false });
+});
+
+test('draft questions keep the chosen length and refuse bad ones', () => {
+  const qs = E.draftQuestions({ items: [{ q: ' 지원 동기 ', limit: '1000' }, { q: '', limit: '500' }, { q: '성장 과정', limit: '' }] });
+  assert.deepStrictEqual(qs, [{ q: '지원 동기', limit: 1000 }, { q: '성장 과정', limit: 0 }]);
+  assert.throws(() => E.draftQuestions({ items: [] }));
+  assert.throws(() => E.draftQuestions({ items: [{ q: '지원 동기', limit: '50' }] }));
+  assert.throws(() => E.draftQuestions({ items: [{ q: '지원 동기', limit: '천자' }] }));
+});
+
+test('draft lengths are counted by code and reported in the saved draft', () => {
+  const qs = [{ q: 'a', limit: 100 }, { q: 'b', limit: 100 }, { q: 'c', limit: 0 }];
+  const rows = E.draftLengths(qs, ['가'.repeat(101), '가'.repeat(89), '가'.repeat(5000)]);
+  assert.deepStrictEqual(rows.map((r) => [r.over, r.short]), [[true, false], [false, true], [false, false]]);
+  const md = E.draftMd({ company: '예시 회사', job: '설비' }, [{ n: 1, q: '지원 동기', limit: 500, chars: 485, a: '본문',
+    line: '셋업', x: '문제', y: '해결', z: '수치', insight: '쓰임', used: [], check: [] }]);
+  assert.ok(md.includes('485자 / 제한 500자, 97%'));
+  assert.ok(md.includes('- X (문제와 목표): 문제'));
 });

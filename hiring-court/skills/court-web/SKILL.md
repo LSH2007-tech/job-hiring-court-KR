@@ -15,8 +15,10 @@ description: "취업 재판을 시작한다: 게임형 웹 화면을 연다. 이
 
 ## 사용자에게 알려 줄 것
 - 단계마다 Claude를 부르므로 1~3분씩 걸린다.
+- 재판 한 번에 Claude를 10번 안팎 부른다. Pro 요금제(Opus 5.5, 높은 연산 수준)에서 5시간 사용 한도의 약 20~30%를 쓰니, 시작 전에 남은 사용량을 확인하라고 알린다.
 - 지원자 기록은 대문에서 '지원자 파일 넣기'(이력서, 경력기술서, 기존 자소서) 또는 'Notion 연동'으로 넣는다.
 - Notion 연동은 Claude Code에 노션이 `notion`이라는 이름으로 등록되어 있어야 한다. 화면이 안내하는 대로 터미널에서 `claude mcp add --transport http --scope user notion https://mcp.notion.com/mcp`와 `claude mcp login notion`을 한 번 실행하면 된다. 웹앱은 노션을 읽기만 한다.
+- 공고는 캡처 이미지, 파일(PDF, Word), 본문 붙여넣기 세 가지로 받는다. 링크는 받지 않는다.
 - 파일 읽기 품질을 위해 `python -m pip install "markitdown[pdf,docx,pptx,xlsx]"`를 권한다.
 - 재판 기록은 사용자가 고른 폴더에 저장된다(기본 `문서/취업재판`). 작업 중 파일은 `~/.hiring-court/`에 있다.
 
