@@ -16,6 +16,7 @@
 - **Try it in the browser (no install):** https://lsh2007-tech.github.io/job-hiring-court-KR/app/
 - **Intro and install guide:** https://lsh2007-tech.github.io/job-hiring-court-KR/
 - **About the skill:** [hiring-court/README.en.md](hiring-court/README.en.md)
+- **Step-by-step guide with screenshots (Korean):** [README.ko.md › 단계별 사용법](README.ko.md#단계별-사용법)
 
 ## Two ways to run it
 
